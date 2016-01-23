@@ -1,6 +1,6 @@
 #![cfg_attr(test, allow(dead_code))]
 
-use std::collections::BTreeMap;
+use std::collections::btree_map::{BTreeMap, Entry, IterMut};
 use std::env;
 use std::iter::Iterator;
 use std::process;
@@ -11,17 +11,35 @@ use zsnapmgr::ZSnapMgr;
 mod enumerate_files_no_error;
 use enumerate_files_no_error::EnumerateFilesNoError;
 
+mod table;
+use table::Table;
+
 static USE_SUDO: bool = true;
 
 #[derive(Debug)]
 struct Backup {
     filename_base: String,
     volume: String,
-    latest_snapshot: String,
+    start_snapshot: Option<String>,
+    end_snapshot: Option<String>,
 }
 
 struct Backups {
     backups_by_volume: BTreeMap<String, Backup>
+}
+
+struct BackupsIterMut<'a> {
+    iter_mut: IterMut<'a, String, Backup>,
+}
+
+impl<'a> Iterator for BackupsIterMut<'a> {
+    type Item = &'a mut Backup;
+    fn next(&mut self) -> Option<&'a mut Backup> {
+        match self.iter_mut.next() {
+            Some((_, backup)) => Some(backup),
+            None => None,
+        }
+    }
 }
 
 impl Backups {
@@ -31,33 +49,45 @@ impl Backups {
         }
     }
 
-    pub fn insert(&mut self, filename: &str, snapshot: &str) {
-        let filename_parts: Vec<&str> = filename.splitn(2, '@').collect();
-        let volume: &str = snapshot.splitn(2, '@').next().unwrap();
+    pub fn insert(&mut self, filename_base: String, volume: String, start_snapshot: Option<String>) {
 
-        let mut found = false;
-        if let Some(ref mut backup) = self.backups_by_volume.get_mut(volume) {
-            found = true;
-            if filename_parts[1] > &backup.latest_snapshot {
-                backup.latest_snapshot = filename_parts[1].to_string();
-                backup.filename_base   = filename_parts[0].to_string();
-            }
-        }
-        if !found {
-            self.backups_by_volume.insert(volume.to_string(), Backup {
-                filename_base: filename_parts[0].to_string(),
-                volume: volume.to_string(),
-                latest_snapshot: filename_parts[1].to_string(),
-            });
+        match self.backups_by_volume.entry(volume.clone()) {
+            Entry::Occupied(ref mut entry) => {
+                let backup = entry.get_mut();
+                if start_snapshot.is_some()
+                    && (
+                        backup.start_snapshot.is_none()
+                        || start_snapshot.as_ref().unwrap() > backup.start_snapshot.as_ref().unwrap()
+                    ) {
+                    backup.start_snapshot = start_snapshot;
+                    backup.filename_base = filename_base;
+                }
+            },
+            Entry::Vacant(entry) => {
+                entry.insert(Backup {
+                    filename_base: filename_base,
+                    volume: volume,
+                    start_snapshot: start_snapshot,
+                    end_snapshot: None,
+                });
+            },
         }
     }
 
     pub fn values(self) -> Vec<Backup> {
         let mut vec: Vec<Backup> = Vec::new();
         for (_k, v) in self.backups_by_volume.into_iter() {
-            vec.push(v);
+            if v.end_snapshot.is_some() {
+                vec.push(v);
+            }
         }
         vec
+    }
+
+    fn iter_mut<'a>(&'a mut self) -> BackupsIterMut<'a> {
+        BackupsIterMut {
+            iter_mut: self.backups_by_volume.iter_mut()
+        }
     }
 }
 
@@ -71,35 +101,46 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
         }
     };
 
+    let volumes: Vec<String> = match z.get_volumes() {
+        Ok(v) => v,
+        Err(e) => {
+            println!("Error getting volumes from ZFS: {}", e);
+            return vec!();
+        }
+    };
+
     let mut backups = Backups::new();
 
     match EnumerateFilesNoError::new(path) {
         Ok(enumerator) => {
             for filename in enumerator {
-                if let Some(pos) = filename.find(".zfs") {
+                if let Some(zfs_pos) = filename.find(".zfs") {
                     if !(&filename).ends_with("_partial") {
-                        let snap_name = filename[0..pos].replace("_", "/");
-                        if snapshots.binary_search(&snap_name).is_ok() {
-                            // exact match of a snapshot name
-                            backups.insert(&filename[0..pos], &snap_name);
+                        let parts = filename[0..zfs_pos].splitn(2, '@').collect::<Vec<&str>>();
+                        let volume_name = parts[0].replace("_", "/");
+                        let backup_snap = parts[1];
+
+                        if volumes.binary_search(&volume_name).is_ok() {
+                            backups.insert(volume_name.to_string(), volume_name.to_string(), Some(backup_snap.to_string()));
                         }
                         else {
-                            // see if the filename matches the end of a snapshot
-                            let snap_name_mod = "/".to_string() + &snap_name;
-
-                            let matches = snapshots.iter().filter(|item| {
-                                item.ends_with(&snap_name_mod)
+                            let volume_name_mod = "/".to_string() + &volume_name;
+                            let matches = volumes.iter().filter(|ref vol| {
+                                vol.ends_with(&volume_name_mod)
                             }).collect::<Vec<&String>>();
 
                             if matches.len() == 1 {
-                                backups.insert(&filename[0..pos], matches[0]);
+                                backups.insert(matches[0].clone(), volume_name.to_string(), Some(backup_snap.to_string()));
                             }
                             else {
-                                print!("Backup filename \"{}\" doesn't match a snapshot.", filename);
+                                print!("Backup filename \"{}\" ", filename);
                                 if matches.len() > 1 {
-                                    print!(" It could be any of: {:?}.", matches);
+                                    println!("matches more than one volume.\nIt could be any of: {:?}", matches);
                                 }
-                                println!(" Skipping it.");
+                                else {
+                                    println!("doesn't match any volumes.");
+                                }
+                                println!("Skipping it.\n");
                             }
                         }
                     }
@@ -112,12 +153,58 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
         },
     }
 
+    // Now fill in the latest snapshot available for each volume in the proposed backups.
+    for backup in backups.iter_mut() {
+        let volume_at = backup.volume.clone() + "@";
+        let volume_snaps = snapshots.iter().filter(|snap| {
+            snap.starts_with(&volume_at)
+        }).collect::<Vec<&String>>();
+
+
+        if backup.start_snapshot.is_some() {
+            // Check that the start snapshot still exists.
+            let start_snapshot = volume_at.clone() + backup.start_snapshot.as_ref().unwrap();
+
+            if !volume_snaps.binary_search(&&start_snapshot).is_ok() {
+                println!("Snapshot \"{}\" doesn't exist any more; doing full backup instead.\n", start_snapshot);
+                backup.start_snapshot = None;
+            }
+        }
+
+        if volume_snaps.len() == 1 && backup.start_snapshot.is_some() {
+            println!("Backup of \"{}\" is up to date. Skipping.\n", backup.volume);
+            backup.end_snapshot = None;
+        }
+        else {
+            let last_snapshot: &String = volume_snaps.last().unwrap();
+            backup.end_snapshot = Some(last_snapshot[last_snapshot.find('@').unwrap() + 1 ..].to_string());
+        }
+    }
+
     backups.values()
 }
 
 fn interactive_backup(backups_dir: &str) {
+    let mut volumes: Vec<Backup> = gather_volumes(backups_dir);
+
+    let mut table = Table::new(&vec!("_", "volume", "incremental", "snapshot date"));
+    for i in 0..volumes.len() {
+        table.push(vec!(
+                (i + 1).to_string(),
+                volumes[i].volume.clone(),
+                if volumes[i].start_snapshot.is_none() {
+                    "full backup".to_string()
+                }
+                else {
+                    volumes[i].start_snapshot.as_ref().unwrap().clone()
+                },
+                volumes[i].end_snapshot.as_ref().unwrap().clone()
+            ));
+    }
+
     //TODO
-    println!("{:?}", gather_volumes(backups_dir));
+    println!("{}", table);
+    println!("{:?}", volumes);
 }
 
 fn main() {

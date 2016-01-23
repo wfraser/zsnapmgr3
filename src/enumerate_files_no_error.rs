@@ -32,8 +32,8 @@ impl Iterator for EnumerateFilesNoError {
                         }
                     }
                 },
+                Some(Err(_)) => (), // ignore the error; loop again.
                 None => return None,
-                _ => ()
             }
         }
     }

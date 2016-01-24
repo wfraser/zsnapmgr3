@@ -33,6 +33,7 @@ impl ZSnapMgr {
 
     pub fn backup(
         &self,
+        path: &str,
         snapshot: &str,
         passphrase: &str,
         incremental_start: Option<&str>
@@ -43,7 +44,7 @@ impl ZSnapMgr {
 
         self.zfs.send(
             snapshot,
-            &format!("{}.zfs.bz2.gpg", snapshot.replace("/", "_")),
+            &format!("{}/{}.zfs.bz2.gpg", path, snapshot.replace("/", "_")),
             incremental_start,
             Some(&format!("pbzip2 | gpg --batch --symmetric --passphrase-fd {} --output -", passphrase_pipe.child_fd()))
         )

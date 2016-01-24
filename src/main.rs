@@ -3,7 +3,13 @@
 use std::collections::btree_map::{BTreeMap, Entry, IterMut};
 use std::env;
 use std::iter::Iterator;
+use std::io;
+use std::io::{Read, Write};
+use std::ops::Deref;
 use std::process;
+
+extern crate termios;
+use termios::*;
 
 extern crate zsnapmgr;
 use zsnapmgr::ZSnapMgr;
@@ -15,6 +21,26 @@ mod table;
 use table::Table;
 
 static USE_SUDO: bool = true;
+
+trait OptionDeref<T: Deref> {
+    fn as_deref(&self) -> Option<&T::Target>;
+}
+
+impl<T: Deref> OptionDeref<T> for Option<T> {
+    fn as_deref(&self) -> Option<&T::Target> {
+        self.as_ref().map(Deref::deref)
+    }
+}
+
+trait VecDeref<T: Deref> {
+    fn as_deref(&self) -> Vec<&T::Target>;
+}
+
+impl<T: Deref> VecDeref<T> for Vec<T> {
+    fn as_deref(&self) -> Vec<&T::Target> {
+        self.iter().map(Deref::deref).collect()
+    }
+}
 
 #[derive(Debug)]
 struct Backup {
@@ -93,7 +119,7 @@ impl Backups {
 
 fn gather_volumes(path: &str) -> Vec<Backup> {
     let z = ZSnapMgr::new(USE_SUDO);
-    let snapshots = match z.get_snapshots(None) {
+    let snapshots: Vec<String> = match z.get_snapshots(None) {
         Ok(s) => s,
         Err(e) => {
             println!("Error getting snapshots from ZFS: {}", e);
@@ -121,16 +147,26 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
                         let backup_snap = parts[1];
 
                         if volumes.binary_search(&volume_name).is_ok() {
-                            backups.insert(volume_name.to_string(), volume_name.to_string(), Some(backup_snap.to_string()));
+                            backups.insert(
+                                parts[0].to_string(),
+                                volume_name.to_string(),
+                                Some(backup_snap.to_string())
+                            );
                         }
                         else {
                             let volume_name_mod = "/".to_string() + &volume_name;
-                            let matches = volumes.iter().filter(|ref vol| {
-                                vol.ends_with(&volume_name_mod)
-                            }).collect::<Vec<&String>>();
+                            let matches: Vec<&str> = volumes
+                                .iter()
+                                .filter(|ref vol| vol.ends_with(&volume_name_mod))
+                                .map(Deref::deref)
+                                .collect();
 
                             if matches.len() == 1 {
-                                backups.insert(matches[0].clone(), volume_name.to_string(), Some(backup_snap.to_string()));
+                                backups.insert(
+                                    matches[0].to_string(),
+                                    volume_name.to_string(),
+                                    Some(backup_snap.to_string())
+                                );
                             }
                             else {
                                 print!("Backup filename \"{}\" ", filename);
@@ -156,55 +192,159 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
     // Now fill in the latest snapshot available for each volume in the proposed backups.
     for backup in backups.iter_mut() {
         let volume_at = backup.volume.clone() + "@";
-        let volume_snaps = snapshots.iter().filter(|snap| {
-            snap.starts_with(&volume_at)
-        }).collect::<Vec<&String>>();
-
+        let volume_snaps: Vec<&str> = snapshots
+            .iter()
+            .filter(|snap| snap.starts_with(&volume_at))
+            .map(Deref::deref)
+            .collect();
 
         if backup.start_snapshot.is_some() {
             // Check that the start snapshot still exists.
             let start_snapshot = volume_at.clone() + backup.start_snapshot.as_ref().unwrap();
 
-            if !volume_snaps.binary_search(&&start_snapshot).is_ok() {
+            if !volume_snaps.binary_search(&start_snapshot.deref()).is_ok() {
                 println!("Snapshot \"{}\" doesn't exist any more; doing full backup instead.\n", start_snapshot);
                 backup.start_snapshot = None;
             }
         }
 
-        if volume_snaps.len() == 1 && backup.start_snapshot.is_some() {
-            println!("Backup of \"{}\" is up to date. Skipping.\n", backup.volume);
-            backup.end_snapshot = None;
+        let last_snapshot: &str = volume_snaps.last().unwrap().splitn(2, '@').last().unwrap();
+        println!("last snapshot: {}", last_snapshot);
+
+        if backup.start_snapshot.as_ref()
+                                .and_then(|start| Some(start != last_snapshot))
+                                .unwrap_or(false) {
+            backup.end_snapshot = Some(last_snapshot.to_string());
         }
         else {
-            let last_snapshot: &String = volume_snaps.last().unwrap();
-            backup.end_snapshot = Some(last_snapshot[last_snapshot.find('@').unwrap() + 1 ..].to_string());
+            println!("Backup of \"{}\" is up to date (@{}). Skipping.\n",
+                backup.volume,
+                backup.start_snapshot.as_ref().unwrap()
+            );
+            backup.end_snapshot = None;
         }
     }
 
     backups.values()
 }
 
+fn getpass(prompt: &str) -> io::Result<String> {
+    let mut termios = Termios::from_fd(0).expect("failed to get termios settings");
+
+    let old = termios.c_lflag;
+    termios.c_lflag &= !ECHO;   // disable echo
+    termios.c_lflag &= !ICANON; // disable line-buffering
+    tcsetattr(0, TCSAFLUSH, &mut termios).expect("failed to set termios settings");
+
+    let mut stdout = io::stdout();
+    write!(stdout, "{}", prompt).unwrap();
+    stdout.flush().unwrap();
+
+    let stdin = io::stdin();
+    let mut bytes = stdin.lock().bytes();
+    let mut line = String::new();
+    let mut utf8 = Vec::<u8>::new();
+    loop {
+        match bytes.next().or(Some(Err(io::Error::new(io::ErrorKind::Other, "EOF in getpass!")))) {
+            Some(Ok(byte)) => {
+                if byte == 0x4 /* EOT; aka ctrl-D */ && utf8.is_empty() {
+                    return Err(io::Error::new(io::ErrorKind::Other, "EOF in getpass!"));
+                }
+
+                utf8.push(byte);
+
+                let mut valid_utf8 = false;
+                if let Ok(c) = std::str::from_utf8(&utf8) {
+                    if c == "\n" {
+                        write!(stdout, "\n").unwrap();
+                        stdout.flush().unwrap();
+                        break;
+                    }
+                    else {
+                        valid_utf8 = true;
+                        line.push_str(c);
+                        write!(stdout, "*").unwrap();
+                        stdout.flush().unwrap();
+                    }
+                }
+
+                if valid_utf8 {
+                    utf8.clear();
+                }
+            }
+            Some(Err(e)) => {
+                return Err(e);
+            }
+            _ => unreachable!()
+        }
+    }
+
+    termios.c_lflag = old;
+    tcsetattr(0, TCSAFLUSH, &mut termios).expect("failed to reset termios settings");
+
+    Ok(line)
+}
+
+fn do_backups(backups: &Vec<Backup>, path: &str) {
+    if backups.is_empty() {
+        return;
+    }
+
+    let passphrase: String;
+    loop {
+        let pass1 = getpass("GPG passphrase: ").unwrap();
+        let pass2 = getpass("again: ").unwrap();
+        if pass1 != pass2 {
+            println!("Passphrases do not match.");
+        }
+        else {
+            passphrase = pass1;
+            break;
+        }
+    }
+
+    for backup in backups {
+        let z = ZSnapMgr::new(USE_SUDO);
+
+        let snapshot = format!("{}@{}", backup.volume, backup.end_snapshot.as_deref().unwrap());
+        z.backup(path, &snapshot, &passphrase, backup.start_snapshot.as_deref()).err().and_then(|e| {
+            println!("failed backup of {}: {}", backup.volume, e);
+            Some(())
+        });
+    }
+}
+
 fn interactive_backup(backups_dir: &str) {
     let mut volumes: Vec<Backup> = gather_volumes(backups_dir);
 
-    let mut table = Table::new(&vec!("_", "volume", "incremental", "snapshot date"));
-    for i in 0..volumes.len() {
-        table.push(vec!(
-                (i + 1).to_string(),
-                volumes[i].volume.clone(),
-                if volumes[i].start_snapshot.is_none() {
-                    "full backup".to_string()
-                }
-                else {
-                    volumes[i].start_snapshot.as_ref().unwrap().clone()
-                },
-                volumes[i].end_snapshot.as_ref().unwrap().clone()
-            ));
-    }
+    loop {
 
-    //TODO
-    println!("{}", table);
-    println!("{:?}", volumes);
+        let mut table = Table::new(&vec!("_", "volume", "incremental", "snapshot date"));
+        for i in 0..volumes.len() {
+            let start = if volumes[i].start_snapshot.is_none() {
+                "full backup".to_string()
+            }
+            else {
+                volumes[i].start_snapshot.as_ref().unwrap().clone()
+            };
+
+            table.push(vec!(
+                    (i + 1).to_string(),
+                    volumes[i].volume.clone(),
+                    start,
+                    volumes[i].end_snapshot.as_ref().unwrap().clone()
+                ));
+        }
+
+        //TODO
+        println!("{}", table);
+        println!("{:?}", volumes);
+
+        do_backups(&volumes, backups_dir);
+
+        break;
+
+    }
 }
 
 fn main() {

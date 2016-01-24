@@ -16,11 +16,7 @@ pub struct ZSnapMgr {
 
 impl ZSnapMgr {
     pub fn new(use_sudo: bool) -> ZSnapMgr {
-        ZSnapMgr {
-            zfs: ZFS {
-                use_sudo: use_sudo,
-            }
-        }
+        ZSnapMgr { zfs: ZFS { use_sudo: use_sudo } }
     }
 
     pub fn get_volumes(&self) -> Result<Vec<String>, ZfsError> {
@@ -31,22 +27,22 @@ impl ZSnapMgr {
         self.zfs.snapshots(dataset)
     }
 
-    pub fn backup(
-        &self,
-        path: &str,
-        snapshot: &str,
-        passphrase: &str,
-        incremental_start: Option<&str>
-    ) -> Result<(), ZfsError> {
-        let mut passphrase_pipe = zfstry!(InheritablePipe::new(), or "failed to create passphrase pipe");
+    pub fn backup(&self,
+                  path: &str,
+                  snapshot: &str,
+                  passphrase: &str,
+                  incremental_start: Option<&str>)
+                  -> Result<(), ZfsError> {
+        let mut passphrase_pipe =
+            zfstry!(InheritablePipe::new(), or "failed to create passphrase pipe");
 
         zfstry!(write!(passphrase_pipe, "{}\n", passphrase), or "failed to write passphrase to pipe");
 
-        self.zfs.send(
-            snapshot,
-            &format!("{}/{}.zfs.bz2.gpg", path, snapshot.replace("/", "_")),
-            incremental_start,
-            Some(&format!("pbzip2 | gpg --batch --symmetric --passphrase-fd {} --output -", passphrase_pipe.child_fd()))
-        )
+        self.zfs.send(snapshot,
+                      &format!("{}/{}.zfs.bz2.gpg", path, snapshot.replace("/", "_")),
+                      incremental_start,
+                      Some(&format!("pbzip2 | gpg --batch --symmetric --passphrase-fd {} \
+                                     --output -",
+                                    passphrase_pipe.child_fd())))
     }
 }

@@ -1,4 +1,3 @@
-//
 // InheritablePipe :: A pipe that can be used to communicate with a child process.
 //
 // Copyright (c) 2016 by William R. Fraser

@@ -23,7 +23,7 @@ impl error::Error for ZfsError {
     fn cause(&self) -> Option<&error::Error> {
         match self.io_error {
             Some(ref e) => Some(e),
-            None => None
+            None => None,
         }
     }
 }
@@ -31,9 +31,11 @@ impl error::Error for ZfsError {
 impl fmt::Debug for ZfsError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         if self.io_error.is_some() {
-            write!(f, "[ZfsError] {}: {}", self.descr, self.io_error.as_ref().unwrap())
-        }
-        else {
+            write!(f,
+                   "[ZfsError] {}: {}",
+                   self.descr,
+                   self.io_error.as_ref().unwrap())
+        } else {
             write!(f, "[ZfsError] {}", self.descr)
         }
     }
@@ -43,8 +45,7 @@ impl fmt::Display for ZfsError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         if self.io_error.is_some() {
             write!(f, "{}: {}", self.descr, self.io_error.as_ref().unwrap())
-        }
-        else {
+        } else {
             write!(f, "{}", self.descr)
         }
     }
@@ -54,7 +55,7 @@ impl From<(String, Error)> for ZfsError {
     fn from(args: (String, Error)) -> ZfsError {
         ZfsError {
             descr: args.0,
-            io_error: Some(args.1)
+            io_error: Some(args.1),
         }
     }
 }
@@ -63,7 +64,7 @@ impl<'a> From<(&'a str, Error)> for ZfsError {
     fn from(args: (&'a str, Error)) -> ZfsError {
         ZfsError {
             descr: String::from(args.0),
-            io_error: Some(args.1)
+            io_error: Some(args.1),
         }
     }
 }
@@ -72,7 +73,8 @@ impl<'a, 'b> From<(&'a str, &'b Vec<u8>)> for ZfsError {
     fn from(args: (&'a str, &'b Vec<u8>)) -> ZfsError {
         ZfsError {
             descr: String::from(args.0),
-            io_error: Some(Error::new(ErrorKind::Other, (*String::from_utf8_lossy(args.1)).to_owned())),
+            io_error: Some(Error::new(ErrorKind::Other,
+                                      (*String::from_utf8_lossy(args.1)).to_owned())),
         }
     }
 }

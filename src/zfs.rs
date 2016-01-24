@@ -17,7 +17,7 @@ fn get_first_column(bytes: &Vec<u8>) -> Vec<String> {
         if !line.trim().is_empty() {
             match line.splitn(2, '\t').next() {
                 Some(field) => results.push(String::from(field)),
-                None        => ()
+                None => (),
             }
         }
     }
@@ -30,20 +30,19 @@ fn read_line<R: Read>(r: &mut R) -> Result<Option<String>, Error> {
     loop {
         let mut buf = [0 as u8];
         match r.read(&mut buf) {
-            Ok(bytes_read) => if bytes_read == 0 {
-                if line.is_empty() {
-                    return Ok(None);
-                }
-                else {
+            Ok(bytes_read) => {
+                if bytes_read == 0 {
+                    if line.is_empty() {
+                        return Ok(None);
+                    } else {
+                        return Ok(Some(line));
+                    }
+                } else if buf[0] == '\n' as u8 {
                     return Ok(Some(line));
+                } else {
+                    line.push(buf[0] as char);   // we're assuming pure ASCII here.
                 }
             }
-            else if buf[0] == '\n' as u8 {
-                return Ok(Some(line));
-            }
-            else {
-                line.push(buf[0] as char);   // we're assuming pure ASCII here.
-            },
             Err(e) => return Err(e),
         }
     }
@@ -71,8 +70,7 @@ impl ZFS {
             let mut cmd = Command::new("sudo");
             cmd.arg("zfs");
             cmd
-        }
-        else {
+        } else {
             Command::new("zfs")
         }
     }
@@ -104,25 +102,28 @@ impl ZFS {
         self.zfs_list("snapshot", dataset)
     }
 
-    pub fn send(
-        &self,
-        snapshot: &str,
-        destination_filename: &str,
-        incremental: Option<&str>,
-        filter_program: Option<&str>
-    ) -> Result<(), ZfsError> {
+    pub fn send(&self,
+                snapshot: &str,
+                destination_filename: &str,
+                incremental: Option<&str>,
+                filter_program: Option<&str>)
+                -> Result<(), ZfsError> {
 
         // This uses 'sh -c' to run the pipeline because it's less work for us.
         // The "$0", "$1", "$2" are replaced by the additional arguments passed to sh.
         // This is nice because it means they can contain any characters and require no escaping.
 
-        let cmdline = (if self.use_sudo { "sudo zfs" } else { "zfs" }).to_owned()
-            + " send -P -v "
-            + incremental.and(Some("-i $0")).or(Some("")).unwrap()
-            + " $1 "
-            + &filter_program.and_then(|f| { Some(" | ".to_string() + f) }).or(Some("".to_string())).unwrap()
-            + " > $2"
-            ;
+        let cmdline = (if self.use_sudo {
+                          "sudo zfs"
+                      } else {
+                          "zfs"
+                      })
+                      .to_owned() + " send -P -v " +
+                      incremental.and(Some("-i $0")).or(Some("")).unwrap() +
+                      " $1 " +
+                      &filter_program.and_then(|f| Some(" | ".to_string() + f))
+                                     .or(Some("".to_string()))
+                                     .unwrap() + " > $2";
         println!("{}", cmdline);
 
         let partial_filename = destination_filename.to_string() + "_partial";
@@ -144,7 +145,7 @@ impl ZFS {
             match read_line(child.stderr.as_mut().unwrap()) {
                 Ok(Some(line)) => {
                     if (&line).starts_with("incremental\t") || (&line).starts_with("full\t") {
-                        continue
+                        continue;
                     }
                     if (&line).starts_with("size\t") {
                         size = (&line).split_at(5).1.parse::<u64>().unwrap();
@@ -153,8 +154,7 @@ impl ZFS {
                             println!("Empty snapshot; skipping.");
                             break;
                         }
-                    }
-                    else {
+                    } else {
                         let parts: Vec<_> = line.split('\t').collect();
                         if parts.len() != 3 {
                             let msg = format!("Unrecognized output: {}", line);
@@ -162,19 +162,18 @@ impl ZFS {
                         }
                         let percent: f64 = parts[1].parse::<f64>().unwrap() / (size as f64) * 100.;
                         let outline = format!("{} {:.1}% {}B",
-                            parts[0],
-                            percent,
-                            human_number(parts[1].parse::<u64>().unwrap(), 1)
-                        );
-                        let spacing = cmp::max(0, last_line_length - outline.len() as isize) as usize;
+                                              parts[0],
+                                              percent,
+                                              human_number(parts[1].parse::<u64>().unwrap(), 1));
+                        let spacing =
+                            cmp::max(0, last_line_length - outline.len() as isize) as usize;
                         print!("\r{}{}",
-                            outline,
-                            repeat(' ').take(spacing).collect::<String>()
-                        );
+                               outline,
+                               repeat(' ').take(spacing).collect::<String>());
                         zfstry!(stdout().flush(), or "failed to flush stdout?!");
                         last_line_length = outline.len() as isize;
                     }
-                },
+                }
                 Ok(None) => break,
                 Err(e) => return Err(ZfsError::from(("error reading from 'zfs send' pipeline", e))),
             }
@@ -188,8 +187,7 @@ impl ZFS {
 
         if size == 0 {
             zfstry!(fs::remove_file(&partial_filename), or "failed to remove empty partial file");
-        }
-        else {
+        } else {
             zfstry!(fs::rename(&partial_filename, destination_filename), or "failed to move partial file to destination");
         }
 

@@ -51,7 +51,7 @@ struct Backup {
 }
 
 struct Backups {
-    backups_by_volume: BTreeMap<String, Backup>
+    backups_by_volume: BTreeMap<String, Backup>,
 }
 
 struct BackupsIterMut<'a> {
@@ -70,25 +70,24 @@ impl<'a> Iterator for BackupsIterMut<'a> {
 
 impl Backups {
     pub fn new() -> Backups {
-        Backups {
-            backups_by_volume: BTreeMap::new()
-        }
+        Backups { backups_by_volume: BTreeMap::new() }
     }
 
-    pub fn insert(&mut self, filename_base: String, volume: String, start_snapshot: Option<String>) {
+    pub fn insert(&mut self,
+                  filename_base: String,
+                  volume: String,
+                  start_snapshot: Option<String>) {
 
         match self.backups_by_volume.entry(volume.clone()) {
             Entry::Occupied(ref mut entry) => {
                 let backup = entry.get_mut();
-                if start_snapshot.is_some()
-                    && (
-                        backup.start_snapshot.is_none()
-                        || start_snapshot.as_ref().unwrap() > backup.start_snapshot.as_ref().unwrap()
-                    ) {
+                if start_snapshot.is_some() &&
+                   (backup.start_snapshot.is_none() ||
+                    start_snapshot.as_ref().unwrap() > backup.start_snapshot.as_ref().unwrap()) {
                     backup.start_snapshot = start_snapshot;
                     backup.filename_base = filename_base;
                 }
-            },
+            }
             Entry::Vacant(entry) => {
                 entry.insert(Backup {
                     filename_base: filename_base,
@@ -96,7 +95,7 @@ impl Backups {
                     start_snapshot: start_snapshot,
                     end_snapshot: None,
                 });
-            },
+            }
         }
     }
 
@@ -111,9 +110,7 @@ impl Backups {
     }
 
     fn iter_mut<'a>(&'a mut self) -> BackupsIterMut<'a> {
-        BackupsIterMut {
-            iter_mut: self.backups_by_volume.iter_mut()
-        }
+        BackupsIterMut { iter_mut: self.backups_by_volume.iter_mut() }
     }
 }
 
@@ -123,7 +120,7 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
         Ok(s) => s,
         Err(e) => {
             println!("Error getting snapshots from ZFS: {}", e);
-            return vec!();
+            return vec![];
         }
     };
 
@@ -131,7 +128,7 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
         Ok(v) => v,
         Err(e) => {
             println!("Error getting volumes from ZFS: {}", e);
-            return vec!();
+            return vec![];
         }
     };
 
@@ -147,33 +144,29 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
                         let backup_snap = parts[1];
 
                         if volumes.binary_search(&volume_name).is_ok() {
-                            backups.insert(
-                                parts[0].to_string(),
-                                volume_name.to_string(),
-                                Some(backup_snap.to_string())
-                            );
-                        }
-                        else {
+                            backups.insert(parts[0].to_string(),
+                                           volume_name.to_string(),
+                                           Some(backup_snap.to_string()));
+                        } else {
                             let volume_name_mod = "/".to_string() + &volume_name;
-                            let matches: Vec<&str> = volumes
-                                .iter()
-                                .filter(|ref vol| vol.ends_with(&volume_name_mod))
-                                .map(Deref::deref)
-                                .collect();
+                            let matches: Vec<&str> = volumes.iter()
+                                                            .filter(|ref vol| {
+                                                                vol.ends_with(&volume_name_mod)
+                                                            })
+                                                            .map(Deref::deref)
+                                                            .collect();
 
                             if matches.len() == 1 {
-                                backups.insert(
-                                    matches[0].to_string(),
-                                    volume_name.to_string(),
-                                    Some(backup_snap.to_string())
-                                );
-                            }
-                            else {
+                                backups.insert(matches[0].to_string(),
+                                               volume_name.to_string(),
+                                               Some(backup_snap.to_string()));
+                            } else {
                                 print!("Backup filename \"{}\" ", filename);
                                 if matches.len() > 1 {
-                                    println!("matches more than one volume.\nIt could be any of: {:?}", matches);
-                                }
-                                else {
+                                    println!("matches more than one volume.\nIt could be any of: \
+                                              {:?}",
+                                             matches);
+                                } else {
                                     println!("doesn't match any volumes.");
                                 }
                                 println!("Skipping it.\n");
@@ -182,28 +175,28 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
                     }
                 }
             }
-        },
+        }
         Err(e) => {
             println!("Error listing directory \"{}\": {}", path, e);
-            return vec!();
-        },
+            return vec![];
+        }
     }
 
     // Now fill in the latest snapshot available for each volume in the proposed backups.
     for backup in backups.iter_mut() {
         let volume_at = backup.volume.clone() + "@";
-        let volume_snaps: Vec<&str> = snapshots
-            .iter()
-            .filter(|snap| snap.starts_with(&volume_at))
-            .map(Deref::deref)
-            .collect();
+        let volume_snaps: Vec<&str> = snapshots.iter()
+                                               .filter(|snap| snap.starts_with(&volume_at))
+                                               .map(Deref::deref)
+                                               .collect();
 
         if backup.start_snapshot.is_some() {
             // Check that the start snapshot still exists.
             let start_snapshot = volume_at.clone() + backup.start_snapshot.as_ref().unwrap();
 
             if !volume_snaps.binary_search(&start_snapshot.deref()).is_ok() {
-                println!("Snapshot \"{}\" doesn't exist any more; doing full backup instead.\n", start_snapshot);
+                println!("Snapshot \"{}\" doesn't exist any more; doing full backup instead.\n",
+                         start_snapshot);
                 backup.start_snapshot = None;
             }
         }
@@ -211,16 +204,15 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
         let last_snapshot: &str = volume_snaps.last().unwrap().splitn(2, '@').last().unwrap();
         println!("last snapshot: {}", last_snapshot);
 
-        if backup.start_snapshot.as_ref()
-                                .and_then(|start| Some(start != last_snapshot))
-                                .unwrap_or(false) {
+        if backup.start_snapshot
+                 .as_ref()
+                 .and_then(|start| Some(start != last_snapshot))
+                 .unwrap_or(false) {
             backup.end_snapshot = Some(last_snapshot.to_string());
-        }
-        else {
+        } else {
             println!("Backup of \"{}\" is up to date (@{}). Skipping.\n",
-                backup.volume,
-                backup.start_snapshot.as_ref().unwrap()
-            );
+                     backup.volume,
+                     backup.start_snapshot.as_ref().unwrap());
             backup.end_snapshot = None;
         }
     }
@@ -247,7 +239,8 @@ fn getpass(prompt: &str) -> io::Result<String> {
     loop {
         match bytes.next().or(Some(Err(io::Error::new(io::ErrorKind::Other, "EOF in getpass!")))) {
             Some(Ok(byte)) => {
-                if byte == 0x4 /* EOT; aka ctrl-D */ && utf8.is_empty() {
+                // 0x4 is EOT; aka ctrl-D
+                if byte == 0x4 && utf8.is_empty() {
                     return Err(io::Error::new(io::ErrorKind::Other, "EOF in getpass!"));
                 }
 
@@ -259,8 +252,7 @@ fn getpass(prompt: &str) -> io::Result<String> {
                         write!(stdout, "\n").unwrap();
                         stdout.flush().unwrap();
                         break;
-                    }
-                    else {
+                    } else {
                         valid_utf8 = true;
                         line.push_str(c);
                         write!(stdout, "*").unwrap();
@@ -275,7 +267,7 @@ fn getpass(prompt: &str) -> io::Result<String> {
             Some(Err(e)) => {
                 return Err(e);
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -296,8 +288,7 @@ fn do_backups(backups: &Vec<Backup>, path: &str) {
         let pass2 = getpass("again: ").unwrap();
         if pass1 != pass2 {
             println!("Passphrases do not match.");
-        }
-        else {
+        } else {
             passphrase = pass1;
             break;
         }
@@ -306,11 +297,18 @@ fn do_backups(backups: &Vec<Backup>, path: &str) {
     for backup in backups {
         let z = ZSnapMgr::new(USE_SUDO);
 
-        let snapshot = format!("{}@{}", backup.volume, backup.end_snapshot.as_deref().unwrap());
-        z.backup(path, &snapshot, &passphrase, backup.start_snapshot.as_deref()).err().and_then(|e| {
-            println!("failed backup of {}: {}", backup.volume, e);
-            Some(())
-        });
+        let snapshot = format!("{}@{}",
+                               backup.volume,
+                               backup.end_snapshot.as_deref().unwrap());
+        z.backup(path,
+                 &snapshot,
+                 &passphrase,
+                 backup.start_snapshot.as_deref())
+         .err()
+         .and_then(|e| {
+             println!("failed backup of {}: {}", backup.volume, e);
+             Some(())
+         });
     }
 }
 
@@ -319,24 +317,21 @@ fn interactive_backup(backups_dir: &str) {
 
     loop {
 
-        let mut table = Table::new(&vec!("_", "volume", "incremental", "snapshot date"));
+        let mut table = Table::new(&vec!["_", "volume", "incremental", "snapshot date"]);
         for i in 0..volumes.len() {
             let start = if volumes[i].start_snapshot.is_none() {
                 "full backup".to_string()
-            }
-            else {
+            } else {
                 volumes[i].start_snapshot.as_ref().unwrap().clone()
             };
 
-            table.push(vec!(
-                    (i + 1).to_string(),
-                    volumes[i].volume.clone(),
-                    start,
-                    volumes[i].end_snapshot.as_ref().unwrap().clone()
-                ));
+            table.push(vec![(i + 1).to_string(),
+                            volumes[i].volume.clone(),
+                            start,
+                            volumes[i].end_snapshot.as_ref().unwrap().clone()]);
         }
 
-        //TODO
+        // TODO
         println!("{}", table);
         println!("{:?}", volumes);
 
@@ -353,8 +348,7 @@ fn main() {
 
     let command = if args.len() < 2 {
         "help"
-    }
-    else {
+    } else {
         args[1].as_ref()
     };
 
@@ -362,16 +356,15 @@ fn main() {
         "backup" => {
             if args.len() == 3 {
                 interactive_backup(&args[2]);
-            }
-            else {
+            } else {
                 println!("usage: {} backup <backups_location>", program_name);
                 process::exit(-1);
             }
-        },
+        }
         "automanage" => {
             println!("snapshot automanage is not yet implemented.");
             process::exit(-1);
-        },
+        }
         _ => {
             if command != "help" {
                 println!("unknown command \"{}\"", command);

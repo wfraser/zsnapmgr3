@@ -19,8 +19,7 @@ impl Table {
             if &heading[0..1] == "_" {
                 table.pad_left.push(true);
                 table.headers.push((&heading[1..]).to_string());
-            }
-            else {
+            } else {
                 table.pad_left.push(false);
                 table.headers.push(heading.to_string());
             }
@@ -36,14 +35,6 @@ impl Table {
 
         self.items.push(row);
     }
-
-    /*
-    pub fn append<I: Iterator<Item=Vec<String>>>(&mut self, source: &mut I) {
-        for row in source {
-            self.push(row);
-        }
-    }
-    */
 }
 
 fn measure(measures: &mut Vec<usize>, row: &Vec<String>) {
@@ -54,12 +45,15 @@ fn measure(measures: &mut Vec<usize>, row: &Vec<String>) {
     }
 }
 
-fn write_measured(f: &mut fmt::Formatter, row: &Vec<String>, measures: &Vec<usize>, pad_left: &Vec<bool>) -> fmt::Result {
+fn write_measured(f: &mut fmt::Formatter,
+                  row: &Vec<String>,
+                  measures: &Vec<usize>,
+                  pad_left: &Vec<bool>)
+                  -> fmt::Result {
     for i in 0..measures.len() {
         if pad_left[i] {
             try!(write!(f, "{:>1$}", row[i], measures[i]));
-        }
-        else {
+        } else {
             try!(write!(f, "{:<1$}", row[i], measures[i]));
         }
         if i != measures.len() - 1 {

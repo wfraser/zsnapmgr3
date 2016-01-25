@@ -1,4 +1,7 @@
-#![cfg_attr(test, allow(dead_code))]
+// ZSnapMgr :: ZFS snapshot and backup manager
+//
+// Copyright (c) 2016 by William R. Fraser
+//
 
 use std::collections::btree_map::{BTreeMap, Entry, IterMut};
 use std::env;
@@ -13,9 +16,6 @@ use termios::*;
 
 extern crate zsnapmgr;
 use zsnapmgr::ZSnapMgr;
-
-mod enumerate_files_no_error;
-use enumerate_files_no_error::EnumerateFilesNoError;
 
 mod table;
 use table::Table;
@@ -114,6 +114,25 @@ impl Backups {
     }
 }
 
+fn enumerate_files(path: &str) -> Box<Iterator<Item = String>> {
+    let out = std::fs::read_dir(std::path::Path::new(path))
+                  .expect("error reading directory")
+                  .map(|entry_result| entry_result.expect("error enumerating files"))
+                  .filter(|entry| {
+                      match entry.file_type() {
+                          Ok(ft) => ft.is_file(),
+                          Err(e) => {
+                              println!("error getting file type of \"{}\": {}",
+                                       entry.path().to_string_lossy(),
+                                       e);
+                              false
+                          }
+                      }
+                  })
+                  .map(|entry| entry.file_name().to_string_lossy().into_owned());
+    Box::new(out)
+}
+
 fn gather_volumes(path: &str) -> Vec<Backup> {
     let z = ZSnapMgr::new(USE_SUDO);
     let snapshots: Vec<String> = match z.get_snapshots(None) {
@@ -134,51 +153,42 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
 
     let mut backups = Backups::new();
 
-    match EnumerateFilesNoError::new(path) {
-        Ok(enumerator) => {
-            for filename in enumerator {
-                if let Some(zfs_pos) = filename.find(".zfs") {
-                    if !(&filename).ends_with("_partial") {
-                        let parts = filename[0..zfs_pos].splitn(2, '@').collect::<Vec<&str>>();
-                        let volume_name = parts[0].replace("_", "/");
-                        let backup_snap = parts[1];
+    for filename in enumerate_files(path) {
+        if let Some(zfs_pos) = filename.find(".zfs") {
+            if !(&filename).ends_with("_partial") {
+                let parts = filename[0..zfs_pos].splitn(2, '@').collect::<Vec<&str>>();
+                let volume_name = parts[0].replace("_", "/");
+                let backup_snap = parts[1];
 
-                        if volumes.binary_search(&volume_name).is_ok() {
-                            backups.insert(parts[0].to_string(),
-                                           volume_name.to_string(),
-                                           Some(backup_snap.to_string()));
+                if volumes.binary_search(&volume_name).is_ok() {
+                    backups.insert(parts[0].to_string(),
+                                   volume_name.to_string(),
+                                   Some(backup_snap.to_string()));
+                } else {
+                    let volume_name_mod = "/".to_string() + &volume_name;
+                    let matches: Vec<&str> = volumes.iter()
+                                                    .filter(|ref vol| {
+                                                        vol.ends_with(&volume_name_mod)
+                                                    })
+                                                    .map(Deref::deref)
+                                                    .collect();
+
+                    if matches.len() == 1 {
+                        backups.insert(matches[0].to_string(),
+                                       volume_name.to_string(),
+                                       Some(backup_snap.to_string()));
+                    } else {
+                        print!("Backup filename \"{}\" ", filename);
+                        if matches.len() > 1 {
+                            println!("matches more than one volume.\nIt could be any of: {:?}",
+                                     matches);
                         } else {
-                            let volume_name_mod = "/".to_string() + &volume_name;
-                            let matches: Vec<&str> = volumes.iter()
-                                                            .filter(|ref vol| {
-                                                                vol.ends_with(&volume_name_mod)
-                                                            })
-                                                            .map(Deref::deref)
-                                                            .collect();
-
-                            if matches.len() == 1 {
-                                backups.insert(matches[0].to_string(),
-                                               volume_name.to_string(),
-                                               Some(backup_snap.to_string()));
-                            } else {
-                                print!("Backup filename \"{}\" ", filename);
-                                if matches.len() > 1 {
-                                    println!("matches more than one volume.\nIt could be any of: \
-                                              {:?}",
-                                             matches);
-                                } else {
-                                    println!("doesn't match any volumes.");
-                                }
-                                println!("Skipping it.\n");
-                            }
+                            println!("doesn't match any volumes.");
                         }
+                        println!("Skipping it.\n");
                     }
                 }
             }
-        }
-        Err(e) => {
-            println!("Error listing directory \"{}\": {}", path, e);
-            return vec![];
         }
     }
 

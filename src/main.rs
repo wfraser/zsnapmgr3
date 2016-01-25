@@ -324,9 +324,7 @@ fn do_backups(backups: &Vec<Backup>, path: &str) {
 
 fn interactive_backup(backups_dir: &str) {
     let mut volumes: Vec<Backup> = gather_volumes(backups_dir);
-
     loop {
-
         let mut table = Table::new(&vec!["_", "volume", "incremental", "snapshot date"]);
         for i in 0..volumes.len() {
             let start = if volumes[i].start_snapshot.is_none() {
@@ -341,14 +339,62 @@ fn interactive_backup(backups_dir: &str) {
                             volumes[i].end_snapshot.as_ref().unwrap().clone()]);
         }
 
-        // TODO
-        println!("{}", table);
-        println!("{:?}", volumes);
+        println!("Volumes to backup:\n{}", table);
 
-        do_backups(&volumes, backups_dir);
+        println!(concat!("Enter a number to make changes,\n",
+                         "\t'+' to add a volume,\n",
+                         "\t'-' to remove one,\n",
+                         "\t'd' to change all dates,\n",
+                         "\tor <return> to start backup: "));
+        io::stdout().flush().unwrap();
 
-        break;
+        let mut input = String::new();
+        match io::stdin().read_line(&mut input) {
+            Ok(bytes_read) => {
+                if bytes_read == 0 {
+                    panic!("EOF");
+                }
+                input.pop();
+            }
+            Err(e) => panic!(e),
+        }
 
+        if input == "+" {
+            // TODO
+            println!("ADD");
+        } else if input.starts_with("-") {
+            // TODO
+            println!("REMOVE");
+        } else if input.starts_with("d") || input.starts_with("D") {
+            // TODO
+            println!("DATE");
+        } else if input.is_empty() {
+            println!("Starting backups.\n");
+            do_backups(&volumes, backups_dir);
+            break;
+        } else {
+            let index: usize;
+
+            match input.parse::<usize>() {
+                Ok(n) => {
+                    index = n;
+                }
+                Err(e) => {
+                    println!("Invalid number: {}", e);
+                    continue;
+                }
+            }
+
+            if volumes.len() < index {
+                println!("Number out of range.");
+                continue;
+            }
+
+            let vol = &volumes[index - 1];
+
+            // TODO
+            println!("CHANGE: {:?}", vol);
+        }
     }
 }
 

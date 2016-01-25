@@ -1,3 +1,8 @@
+// ZFS :: Interface to the `zfs` command line program.
+//
+// Copyright (c) 2016 by William R. Fraser
+//
+
 use std::cmp;
 use std::fs;
 use std::process::{Child, Command, Stdio};

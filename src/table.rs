@@ -1,3 +1,8 @@
+// A utility class for making pretty tables of text.
+//
+// Copyright (c) 2016 by William R. Fraser
+//
+
 use std::fmt;
 
 #[derive(Debug)]

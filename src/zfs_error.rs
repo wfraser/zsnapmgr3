@@ -1,3 +1,8 @@
+// ZfsError :: Custom error messages for ZSnapMgr
+//
+// Copyright (c) 2016 by William R. Fraser
+//
+
 use std::error;
 use std::fmt;
 use std::io::{Error, ErrorKind};

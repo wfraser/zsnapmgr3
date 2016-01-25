@@ -1,3 +1,8 @@
+// ZSnapMgr :: ZFS snapshot and backup manager
+//
+// Copyright (c) 2016 by William R. Fraser
+//
+
 use std::io::Write;
 
 #[macro_use]

@@ -289,6 +289,7 @@ fn getpass(prompt: &str) -> io::Result<String> {
 
 fn do_backups(backups: &Vec<Backup>, path: &str) {
     if backups.is_empty() {
+        println!("Nothing to do.");
         return;
     }
 
@@ -323,6 +324,7 @@ fn do_backups(backups: &Vec<Backup>, path: &str) {
 }
 
 fn interactive_backup(backups_dir: &str) {
+    let z = ZSnapMgr::new(USE_SUDO);
     let mut volumes: Vec<Backup> = gather_volumes(backups_dir);
     loop {
         let mut table = Table::new(&vec!["_", "volume", "incremental", "snapshot date"]);
@@ -341,7 +343,7 @@ fn interactive_backup(backups_dir: &str) {
 
         println!("Volumes to backup:\n{}", table);
 
-        println!(concat!("Enter a number to make changes,\n",
+        print!(concat!("Enter a number to make changes,\n",
                          "\t'+' to add a volume,\n",
                          "\t'-' to remove one,\n",
                          "\t'd' to change all dates,\n",
@@ -360,14 +362,85 @@ fn interactive_backup(backups_dir: &str) {
         }
 
         if input == "+" {
-            // TODO
-            println!("ADD");
+            print!("Volume: ");
+            io::stdout().flush().unwrap();
+
+            let mut vol = String::new();
+            io::stdin().read_line(&mut vol).unwrap();
+            vol.pop();
+
+            let latest_snap: String;
+            match z.get_snapshots(Some(&vol)).unwrap().pop() {
+                Some(snap) => {
+                    latest_snap = snap;
+                },
+                None       => {
+                    println!("No snapshots available for that volume.\n");
+                    continue;
+                }
+            }
+
+            volumes.push(Backup {
+                filename_base: vol.replace("/", "_").to_string(),
+                volume: vol.clone(),
+                start_snapshot: None,
+                end_snapshot: Some(latest_snap), 
+            });
+
         } else if input.starts_with("-") {
-            // TODO
-            println!("REMOVE");
+
+            let index: usize;
+
+            if input.len() > 1 {
+                match input[1..].parse::<usize>() {
+                    Ok(n) => {
+                        index = n;
+                    },
+                    Err(e) => {
+                        println!("Invalid number: {}\n", e);
+                        continue;
+                    }
+                }
+            } else {
+                print!("Remove which one?: ");
+                io::stdout().flush().unwrap();
+
+                input.clear();
+                io::stdin().read_line(&mut input).unwrap();
+                input.pop();
+
+                match input.parse::<usize>() {
+                    Ok(n) => {
+                        index = n;
+                    },
+                    Err(e) => {
+                        println!("Invalid number: {}\n", e);
+                        continue;
+                    }
+                }
+            }
+
+            if volumes.len() < index || index == 0 {
+                println!("Number out of range.\n");
+                continue;
+            }
+
+            volumes.remove(index - 1);
+
         } else if input.starts_with("d") || input.starts_with("D") {
-            // TODO
-            println!("DATE");
+
+            print!("Snapshot date (yyyy-MM-dd): ");
+            io::stdout().flush().unwrap();
+
+            let mut date = String::new();
+            io::stdin().read_line(&mut date).unwrap();
+            date.pop();
+
+            for volume in volumes.iter_mut() {
+                volume.end_snapshot = Some(date.clone());
+                //TODO: check that the snapshot exists for that volume
+            }
+
         } else if input.is_empty() {
             println!("Starting backups.\n");
             do_backups(&volumes, backups_dir);
@@ -380,20 +453,47 @@ fn interactive_backup(backups_dir: &str) {
                     index = n;
                 }
                 Err(e) => {
-                    println!("Invalid number: {}", e);
+                    println!("Invalid number: {}\n", e);
                     continue;
                 }
             }
 
-            if volumes.len() < index {
-                println!("Number out of range.");
+            if volumes.len() < index || index == 0 {
+                println!("Number out of range.\n");
                 continue;
             }
 
-            let vol = &volumes[index - 1];
+            let vol = volumes.get_mut(index - 1).unwrap();
 
-            // TODO
-            println!("CHANGE: {:?}", vol);
+            print!("Change (I)ncremental starting snapshot, (S)napshot date: ");
+            io::stdout().flush().unwrap();
+
+            input.clear();
+            io::stdin().read_line(&mut input).unwrap();
+            input.pop();
+
+            let start: bool;
+            if input == "I" || input == "i" {
+                start = true;
+            } else if input == "S" || input == "s" {
+                start = false;
+            } else {
+                println!("Invalid selection.\n");
+                continue;
+            }
+                
+            print!("Date (yyyy-MM-dd): ");
+            io::stdout().flush().unwrap();
+
+            input.clear();
+            io::stdin().read_line(&mut input).unwrap();
+            input.pop();
+
+            if start {
+                vol.start_snapshot = Some(input.clone());
+            } else {
+                vol.end_snapshot = Some(input.clone());
+            }
         }
     }
 }

@@ -370,12 +370,19 @@ fn interactive_backup(backups_dir: &str) {
             vol.pop();
 
             let latest_snap: String;
-            match z.get_snapshots(Some(&vol)).unwrap().pop() {
-                Some(snap) => {
+            match z.get_snapshots(Some(&vol))
+                   .and_then(|ref mut snaps| {
+                       Ok(snaps.pop())
+                    }) {
+                Ok(Some(snap)) => {
                     latest_snap = snap;
-                },
-                None       => {
+                }
+                Ok(None) => {
                     println!("No snapshots available for that volume.\n");
+                    continue;
+                }
+                Err(e) => {
+                    println!("Error listing snapshots: {}\n", e);
                     continue;
                 }
             }

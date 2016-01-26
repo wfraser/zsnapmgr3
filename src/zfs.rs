@@ -66,7 +66,24 @@ fn human_number(n: u64, decimals: usize) -> String {
     let suffixes = ['k', 'M', 'G', 'T', 'P', 'E'];
 
     let h = (n as f64) / 1000_f64.powi(magnitude);
-    format!("{:.*} {}", decimals, h, suffixes[magnitude as usize])
+    if magnitude > 0 {
+        format!("{:.*} {}", decimals, h, suffixes[magnitude as usize - 1])
+    }
+    else {
+        h.to_string()
+    }
+}
+
+#[test]
+fn test_human_number() {
+    assert_eq!(human_number(            1, 1), "1");
+    assert_eq!(human_number(          999, 1), "999");
+    assert_eq!(human_number(         1000, 1), "1.0 k");
+    assert_eq!(human_number(         1500, 1), "1.5 k");
+    assert_eq!(human_number(       999900, 1), "999.9 k");
+    assert_eq!(human_number(      1000000, 1), "1.0 M");
+    assert_eq!(human_number(   1000000000, 1), "1.0 G");
+    assert_eq!(human_number(1000000000000, 1), "1.0 T");
 }
 
 impl ZFS {
@@ -129,7 +146,6 @@ impl ZFS {
                       &filter_program.and_then(|f| Some(" | ".to_string() + f))
                                      .or(Some("".to_string()))
                                      .unwrap() + " > $2";
-        println!("{}", cmdline);
 
         let partial_filename = destination_filename.to_string() + "_partial";
 

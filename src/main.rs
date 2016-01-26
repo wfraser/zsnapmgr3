@@ -311,6 +311,9 @@ fn do_backups(backups: &Vec<Backup>, path: &str) {
         let snapshot = format!("{}@{}",
                                backup.volume,
                                backup.end_snapshot.as_deref().unwrap());
+
+        println!("\nBacking up: {}", snapshot);
+
         z.backup(path,
                  &snapshot,
                  &passphrase,

@@ -24,6 +24,18 @@ use backups::{Backup, Backups};
 
 static USE_SUDO: bool = true;
 
+// Print and flush.
+macro_rules! printf {
+    ( $fmt:expr ) => {
+        print!($fmt);
+        io::stdout().flush().unwrap();
+    };
+    ( $fmt:expr, $($arg:tt)* ) => {
+        print!($fmt, $($arg)*);
+        io::stdout().flush().unwrap();
+    }
+}
+
 trait OptionDeref<T: Deref> {
     fn as_deref(&self) -> Option<&T::Target>;
 }
@@ -168,9 +180,7 @@ fn getpass(prompt: &str) -> io::Result<String> {
     termios.c_lflag &= !ICANON; // disable line-buffering
     tcsetattr(0, TCSAFLUSH, &mut termios).expect("failed to set termios settings");
 
-    let mut stdout = io::stdout();
-    write!(stdout, "{}", prompt).unwrap();
-    stdout.flush().unwrap();
+    printf!("{}", prompt);
 
     let stdin = io::stdin();
     let mut bytes = stdin.lock().bytes();
@@ -189,14 +199,12 @@ fn getpass(prompt: &str) -> io::Result<String> {
                 let mut valid_utf8 = false;
                 if let Ok(c) = std::str::from_utf8(&utf8) {
                     if c == "\n" {
-                        write!(stdout, "\n").unwrap();
-                        stdout.flush().unwrap();
+                        printf!("\n");
                         break;
                     } else {
                         valid_utf8 = true;
                         line.push_str(c);
-                        write!(stdout, "*").unwrap();
-                        stdout.flush().unwrap();
+                        printf!("*");
                     }
                 }
 
@@ -276,12 +284,11 @@ fn interactive_backup(backups_dir: &str) {
 
         println!("Volumes to backup:\n{}", table);
 
-        print!(concat!("Enter a number to make changes,\n",
+        printf!(concat!("Enter a number to make changes,\n",
                          "\t'+' to add a volume,\n",
                          "\t'-' to remove one,\n",
                          "\t'd' to change all dates,\n",
                          "\tor <return> to start backup: "));
-        io::stdout().flush().unwrap();
 
         let mut input = String::new();
         match io::stdin().read_line(&mut input) {
@@ -295,8 +302,7 @@ fn interactive_backup(backups_dir: &str) {
         }
 
         if input == "+" {
-            print!("Volume: ");
-            io::stdout().flush().unwrap();
+            printf!("Volume: ");
 
             let mut vol = String::new();
             io::stdin().read_line(&mut vol).unwrap();
@@ -342,8 +348,7 @@ fn interactive_backup(backups_dir: &str) {
                     }
                 }
             } else {
-                print!("Remove which one?: ");
-                io::stdout().flush().unwrap();
+                printf!("Remove which one?: ");
 
                 input.clear();
                 io::stdin().read_line(&mut input).unwrap();
@@ -369,8 +374,7 @@ fn interactive_backup(backups_dir: &str) {
 
         } else if input.starts_with("d") || input.starts_with("D") {
 
-            print!("Snapshot date (yyyy-MM-dd): ");
-            io::stdout().flush().unwrap();
+            printf!("Snapshot date (yyyy-MM-dd): ");
 
             let mut date = String::new();
             io::stdin().read_line(&mut date).unwrap();
@@ -405,8 +409,7 @@ fn interactive_backup(backups_dir: &str) {
 
             let vol = volumes.get_mut(index - 1).unwrap();
 
-            print!("Change (I)ncremental starting snapshot, (S)napshot date: ");
-            io::stdout().flush().unwrap();
+            printf!("Change (I)ncremental starting snapshot, (S)napshot date: ");
 
             input.clear();
             io::stdin().read_line(&mut input).unwrap();
@@ -422,8 +425,7 @@ fn interactive_backup(backups_dir: &str) {
                 continue;
             }
 
-            print!("Date (yyyy-MM-dd): ");
-            io::stdout().flush().unwrap();
+            printf!("Date (yyyy-MM-dd): ");
 
             input.clear();
             io::stdin().read_line(&mut input).unwrap();

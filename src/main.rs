@@ -3,7 +3,6 @@
 // Copyright (c) 2016 by William R. Fraser
 //
 
-use std::collections::btree_map::{BTreeMap, Entry, IterMut};
 use std::env;
 use std::iter::Iterator;
 use std::io;
@@ -19,6 +18,9 @@ use zsnapmgr::ZSnapMgr;
 
 mod table;
 use table::Table;
+
+mod backups;
+use backups::{Backup, Backups};
 
 static USE_SUDO: bool = true;
 
@@ -39,78 +41,6 @@ trait VecDeref<T: Deref> {
 impl<T: Deref> VecDeref<T> for Vec<T> {
     fn as_deref(&self) -> Vec<&T::Target> {
         self.iter().map(Deref::deref).collect()
-    }
-}
-
-#[derive(Debug)]
-struct Backup {
-    filename_base: String,
-    volume: String,
-    start_snapshot: Option<String>,
-    end_snapshot: Option<String>,
-}
-
-struct Backups {
-    backups_by_volume: BTreeMap<String, Backup>,
-}
-
-struct BackupsIterMut<'a> {
-    iter_mut: IterMut<'a, String, Backup>,
-}
-
-impl<'a> Iterator for BackupsIterMut<'a> {
-    type Item = &'a mut Backup;
-    fn next(&mut self) -> Option<&'a mut Backup> {
-        match self.iter_mut.next() {
-            Some((_, backup)) => Some(backup),
-            None => None,
-        }
-    }
-}
-
-impl Backups {
-    pub fn new() -> Backups {
-        Backups { backups_by_volume: BTreeMap::new() }
-    }
-
-    pub fn insert(&mut self,
-                  filename_base: String,
-                  volume: String,
-                  start_snapshot: Option<String>) {
-
-        match self.backups_by_volume.entry(volume.clone()) {
-            Entry::Occupied(ref mut entry) => {
-                let backup = entry.get_mut();
-                if start_snapshot.is_some() &&
-                   (backup.start_snapshot.is_none() ||
-                    start_snapshot.as_ref().unwrap() > backup.start_snapshot.as_ref().unwrap()) {
-                    backup.start_snapshot = start_snapshot;
-                    backup.filename_base = filename_base;
-                }
-            }
-            Entry::Vacant(entry) => {
-                entry.insert(Backup {
-                    filename_base: filename_base,
-                    volume: volume,
-                    start_snapshot: start_snapshot,
-                    end_snapshot: None,
-                });
-            }
-        }
-    }
-
-    pub fn values(self) -> Vec<Backup> {
-        let mut vec: Vec<Backup> = Vec::new();
-        for (_k, v) in self.backups_by_volume.into_iter() {
-            if v.end_snapshot.is_some() {
-                vec.push(v);
-            }
-        }
-        vec
-    }
-
-    fn iter_mut<'a>(&'a mut self) -> BackupsIterMut<'a> {
-        BackupsIterMut { iter_mut: self.backups_by_volume.iter_mut() }
     }
 }
 
@@ -394,7 +324,7 @@ fn interactive_backup(backups_dir: &str) {
                 filename_base: vol.replace("/", "_").to_string(),
                 volume: vol.clone(),
                 start_snapshot: None,
-                end_snapshot: Some(latest_snap), 
+                end_snapshot: Some(latest_snap),
             });
 
         } else if input.starts_with("-") {
@@ -491,7 +421,7 @@ fn interactive_backup(backups_dir: &str) {
                 println!("Invalid selection.\n");
                 continue;
             }
-                
+
             print!("Date (yyyy-MM-dd): ");
             io::stdout().flush().unwrap();
 

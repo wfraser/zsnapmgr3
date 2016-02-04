@@ -176,11 +176,13 @@ impl ZSnapMgr {
                                           .find(|pair| {
                                               pair.0.year() == snap_date.year() &&
                                               pair.0.month() == snap_date.month()
-                                          });
+                                          })
+                                          .unwrap()
+                                          .1;
 
                 if count > 60 {
                     // Keep only the first snapshot of the month.
-                    if first_of_month.map_or(false, |pair| pair.1 != snap) {
+                    if first_of_month != snap {
                         delete = true;
                     }
                 } else if count > 30 {
@@ -190,10 +192,12 @@ impl ZSnapMgr {
                                              .find(|pair| {
                                                  pair.0.year() == snap_date.year() &&
                                                  pair.0.week_of_year() == snap_date.week_of_year()
-                                             });
+                                             })
+                                             .unwrap()
+                                             .1;
 
-                    if first_of_week.map_or(false, |pair| pair.1 != snap) &&
-                       first_of_month.map_or(false, |pair| pair.1 != snap) {
+                    if first_of_week != snap &&
+                       first_of_month != snap {
                         delete = true;
                     }
                 }

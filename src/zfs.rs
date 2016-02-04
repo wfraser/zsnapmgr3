@@ -20,9 +20,14 @@ fn get_first_column(bytes: &Vec<u8>) -> Vec<String> {
 
     for line in String::from_utf8_lossy(bytes).lines() {
         if !line.trim().is_empty() {
-            match line.splitn(2, '\t').next() {
-                Some(field) => results.push(String::from(field)),
-                None => (),
+            let mut split = line.splitn(2, '\t');
+            match (split.next(), split.next()) {
+                (Some(field), Some(noautosnap)) => {
+                    if !noautosnap.starts_with("yes") {
+                        results.push(String::from(field));
+                    }
+                }
+                _ => (),
             }
         }
     }
@@ -68,13 +73,13 @@ fn human_number(n: u64, decimals: usize) -> String {
     let h = (n as f64) / 1000_f64.powi(magnitude);
     if magnitude > 0 {
         format!("{:.*} {}", decimals, h, suffixes[magnitude as usize - 1])
-    }
-    else {
+    } else {
         h.to_string()
     }
 }
 
 #[test]
+#[cfg_attr(rustfmt, rustfmt_skip)]
 fn test_human_number() {
     assert_eq!(human_number(            1, 1), "1");
     assert_eq!(human_number(          999, 1), "999");
@@ -97,11 +102,19 @@ impl ZFS {
         }
     }
 
-    fn zfs_list(&self, result_type: &str, dataset: Option<&str>) -> Result<Vec<String>, ZfsError> {
+    fn zfs_list(&self, result_type: &str, volume: Option<&str>) -> Result<Vec<String>, ZfsError> {
         let mut cmd = self.zfs_command();
-        cmd.arg("list").arg("-H").arg("-t").arg(result_type);
-        if dataset.is_some() {
-            cmd.arg("-r").arg(dataset.unwrap());
+        cmd.arg("list")
+           .arg("-H")
+           .arg("-t")
+           .arg(result_type)
+           .arg("-o")
+           .arg("name,zsnapmgr:noautosnap");
+        if volume.is_some() {
+            cmd.arg("-r")
+               .arg("-d")
+               .arg("1")
+               .arg(volume.unwrap());
         }
 
         match cmd.output() {

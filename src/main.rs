@@ -440,6 +440,11 @@ fn interactive_backup(backups_dir: &str) {
     }
 }
 
+fn snapshot_automanage() {
+    let z = ZSnapMgr::new(USE_SUDO);
+    z.snapshot_automanage().unwrap();
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let program_name = &args[0].rsplitn(2, '/').next().unwrap();
@@ -460,8 +465,7 @@ fn main() {
             }
         }
         "automanage" => {
-            println!("snapshot automanage is not yet implemented.");
-            process::exit(-1);
+            snapshot_automanage();
         }
         _ => {
             if command != "help" {

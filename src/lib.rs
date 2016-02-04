@@ -43,13 +43,6 @@ fn date_from_snapshot(snap: &str) -> Option<Date<Local>> {
     Some(Local.ymd(dateparts[0], dateparts[1] as u32, dateparts[2] as u32))
 }
 
-fn today() -> Date<Local> {
-    // see chrono issue "Local::today() is not today."
-    // https://github.com/lifthrasiir/rust-chrono/issues/61
-    let now = Local::now();
-    Local.ymd(now.year(), now.month(), now.day())
-}
-
 trait WeekOfYear {
     fn week_of_year(&self) -> u32;
 }
@@ -122,7 +115,7 @@ impl ZSnapMgr {
     }
 
     pub fn snapshot_automanage(&self) -> Result<(), ZfsError> {
-        let today = today();
+        let today = Local::today();
         let today_str = format!("{:04}-{:02}-{:02}",
                                 today.year(),
                                 today.month(),

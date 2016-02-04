@@ -122,7 +122,7 @@ impl ZSnapMgr {
     }
 
     pub fn snapshot_automanage(&self) -> Result<(), ZfsError> {
-        let today = today().succ();
+        let today = today();
         let today_str = format!("{:04}-{:02}-{:02}",
                                 today.year(),
                                 today.month(),

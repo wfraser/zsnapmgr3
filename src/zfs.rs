@@ -11,6 +11,9 @@ use std::iter::repeat;
 
 use zfs_error::ZfsError;
 
+extern crate chrono;
+use chrono::*;
+
 pub struct ZFS {
     pub use_sudo: bool,
 }
@@ -175,6 +178,7 @@ impl ZFS {
 
         let mut size: u64 = 0;
         let mut last_line_length: isize = 0;
+        let start_time = Local::now();
         loop {
             match read_line(child.stderr.as_mut().unwrap()) {
                 Ok(Some(line)) => {
@@ -189,16 +193,39 @@ impl ZFS {
                             break;
                         }
                     } else {
-                        let parts: Vec<_> = line.split('\t').collect();
+                        let parts: Vec<&str> = line.split('\t').collect();
                         if parts.len() != 3 {
                             let msg = format!("Unrecognized output: {}", line);
                             return Err(ZfsError::from(msg));
                         }
-                        let percent: f64 = parts[1].parse::<f64>().unwrap() / (size as f64) * 100.;
-                        let outline = format!("{} {:.1}% {}B",
-                                              parts[0],
+
+                        let time_parts: Vec<u32> = parts[0].split(':')
+                                                           .filter_map(|x| x.parse::<u32>().ok())
+                                                           .collect();
+                        if time_parts.len() != 3 {
+                            let msg = format!("Unrecognized output: {}", line);
+                            return Err(ZfsError::from(msg));
+                        }
+                        let time = Local::today().and_hms(time_parts[0],
+                                                          time_parts[1],
+                                                          time_parts[2]);
+                        let elapsed = time - start_time;
+
+                        let partial_size: u64;
+                        if let Ok(n) = parts[1].parse::<u64>() {
+                            partial_size = n;
+                        } else {
+                            let msg = format!("Unrecognized output: {}", line);
+                            return Err(ZfsError::from(msg));
+                        }
+
+                        let percent: f64 = (partial_size as f64) / (size as f64) * 100.;
+                        let outline = format!("{:02}:{:02}:{:02} {:.1}% {}B",
+                                              elapsed.num_hours(),
+                                              elapsed.num_minutes() % 60,
+                                              elapsed.num_seconds() % 60,
                                               percent,
-                                              human_number(parts[1].parse::<u64>().unwrap(), 1));
+                                              human_number(partial_size, 1));
                         let spacing =
                             cmp::max(0, last_line_length - outline.len() as isize) as usize;
                         print!("\r{}{}",

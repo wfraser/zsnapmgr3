@@ -116,8 +116,8 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
                                                     .collect();
 
                     if matches.len() == 1 {
-                        backups.insert(matches[0].to_string(),
-                                       volume_name.to_string(),
+                        backups.insert(volume_name.to_string(),
+                                       matches[0].to_string(),
                                        Some(backup_snap.to_string()));
                     } else {
                         print!("Backup filename \"{}\" ", filename);
@@ -154,7 +154,6 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
         }
 
         let last_snapshot: &str = volume_snaps.last().unwrap().splitn(2, '@').last().unwrap();
-        println!("last snapshot: {}", last_snapshot);
 
         if backup.start_snapshot
                  .as_ref()

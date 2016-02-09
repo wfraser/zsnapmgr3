@@ -137,15 +137,10 @@ impl ZSnapMgr {
         let mut to_delete = Vec::<String>::new();
         let mut to_create = Vec::<String>::new();
 
-        for volume_pair in snaps_map {
-            let volume = volume_pair.0;
-            let snaps = volume_pair.1;
+        for (volume, snaps) in snaps_map {
             let mut count = 0;
 
-            for snap_pair in snaps.iter().rev() {
-                let snap_date = snap_pair.0;
-                let snap = snap_pair.1;
-
+            for (snap_date, snap) in snaps.iter().rev() {
                 count += 1;
 
                 let days_old = (today - *snap_date).num_days();
@@ -166,9 +161,9 @@ impl ZSnapMgr {
 
                 let first_of_month = snaps.iter()
                                           .rev()
-                                          .find(|pair| {
-                                              pair.0.year() == snap_date.year() &&
-                                              pair.0.month() == snap_date.month()
+                                          .find(|&(&date, _)| {
+                                              date.year() == snap_date.year() &&
+                                              date.month() == snap_date.month()
                                           })
                                           .unwrap()
                                           .1;
@@ -182,9 +177,9 @@ impl ZSnapMgr {
                     // Keep only the first snapshot of the week or month.
                     let first_of_week = snaps.iter()
                                              .rev()
-                                             .find(|pair| {
-                                                 pair.0.year() == snap_date.year() &&
-                                                 pair.0.week_of_year() == snap_date.week_of_year()
+                                             .find(|&(&date, _)| {
+                                                 date.year() == snap_date.year() &&
+                                                 date.week_of_year() == snap_date.week_of_year()
                                              })
                                              .unwrap()
                                              .1;

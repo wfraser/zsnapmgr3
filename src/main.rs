@@ -424,16 +424,25 @@ fn interactive_backup(backups_dir: &str) {
                 continue;
             }
 
-            printf!("Date (yyyy-MM-dd): ");
+            printf!("Date (yyyy-MM-dd");
+            if start {
+                printf!(" or 'none' for full backup): ");
+            } else {
+                printf!("): ");
+            }
 
             input.clear();
             io::stdin().read_line(&mut input).unwrap();
             input.pop();
 
             if start {
-                vol.start_snapshot = Some(input.clone());
+                vol.start_snapshot = if input == "none" {
+                    None
+                } else {
+                    Some(input)
+                }
             } else {
-                vol.end_snapshot = Some(input.clone());
+                vol.end_snapshot = Some(input);
             }
         }
     }

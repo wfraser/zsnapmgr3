@@ -155,12 +155,9 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
 
         let last_snapshot: &str = volume_snaps.last().unwrap().splitn(2, '@').last().unwrap();
 
-        if backup.start_snapshot
-                 .as_ref()
-                 .and_then(|start| Some(start != last_snapshot))
-                 .unwrap_or(false) {
-            backup.end_snapshot = Some(last_snapshot.to_string());
-        } else {
+        if backup.start_snapshot.as_deref() != Some(last_snapshot) {
+            backup.end_snapshot = Some(last_snapshot.to_owned());
+        } else if backup.start_snapshot.is_some() {
             println!("Backup of \"{}\" is up to date (@{}). Skipping.\n",
                      backup.volume,
                      backup.start_snapshot.as_ref().unwrap());

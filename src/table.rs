@@ -13,7 +13,7 @@ pub struct Table {
 }
 
 impl Table {
-    pub fn new(headers: &Vec<&str>) -> Table {
+    pub fn new(headers: &[&str]) -> Table {
         let mut table = Table {
             headers: Vec::new(),
             pad_left: Vec::new(),
@@ -42,7 +42,7 @@ impl Table {
     }
 }
 
-fn measure(measures: &mut Vec<usize>, row: &Vec<String>) {
+fn measure(measures: &mut Vec<usize>, row: &[String]) {
     for i in 0..measures.len() {
         if row[i].len() > measures[i] {
             measures[i] = row[i].len();
@@ -51,9 +51,9 @@ fn measure(measures: &mut Vec<usize>, row: &Vec<String>) {
 }
 
 fn write_measured(f: &mut fmt::Formatter,
-                  row: &Vec<String>,
-                  measures: &Vec<usize>,
-                  pad_left: &Vec<bool>)
+                  row: &[String],
+                  measures: &[usize],
+                  pad_left: &[bool])
                   -> fmt::Result {
     for i in 0..measures.len() {
         if pad_left[i] {
@@ -74,15 +74,15 @@ impl fmt::Display for Table {
 
         measure(&mut measures, &self.headers);
         for row in &self.items {
-            measure(&mut measures, &row);
+            measure(&mut measures, row);
         }
 
         try!(write_measured(f, &self.headers, &measures, &self.pad_left));
         try!(write!(f, "\n"));
 
         let mut total_measure = 0_usize;
-        for i in 0..measures.len() {
-            total_measure += measures[i];
+        for (i, measure) in measures.iter().enumerate() {
+            total_measure += *measure;
             if i != measures.len() - 1 {
                 total_measure += 3;
             }

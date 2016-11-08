@@ -134,7 +134,7 @@ impl ZSnapMgr {
             };
 
             let volume = snap.splitn(2, '@').next().unwrap().to_string();
-            let entry = snaps_map.entry(volume).or_insert(BTreeMap::new());
+            let entry = snaps_map.entry(volume).or_insert_with(BTreeMap::new);
             entry.insert(snap_date, snap);
         }
 

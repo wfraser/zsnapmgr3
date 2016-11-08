@@ -3,6 +3,8 @@
 // Copyright (c) 2016 by William R. Fraser
 //
 
+#![allow(unknown_lints)] // for Clippy
+
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs;
@@ -138,7 +140,7 @@ fn gather_volumes(path: &Path) -> Vec<Backup> {
                 } else {
                     let volume_name_mod = "/".to_string() + &volume_name;
                     let matches: Vec<&str> = volumes.iter()
-                                                    .filter(|ref vol| {
+                                                    .filter(|vol| {
                                                         vol.ends_with(&volume_name_mod)
                                                     })
                                                     .map(Deref::deref)
@@ -194,7 +196,7 @@ fn gather_volumes(path: &Path) -> Vec<Backup> {
         }
     }
 
-    backups.values()
+    backups.into_values()
 }
 
 fn getpass(prompt: &str) -> io::Result<String> {
@@ -203,7 +205,7 @@ fn getpass(prompt: &str) -> io::Result<String> {
     let old = termios.c_lflag;
     termios.c_lflag &= !ECHO;   // disable echo
     termios.c_lflag &= !ICANON; // disable line-buffering
-    tcsetattr(0, TCSAFLUSH, &mut termios).expect("failed to set termios settings");
+    tcsetattr(0, TCSAFLUSH, &termios).expect("failed to set termios settings");
 
     printf!("{}", prompt);
 
@@ -212,7 +214,7 @@ fn getpass(prompt: &str) -> io::Result<String> {
     let mut line = String::new();
     let mut utf8 = Vec::<u8>::new();
     loop {
-        match bytes.next().or(Some(Err(io::Error::new(io::ErrorKind::Other, "EOF in getpass!")))) {
+        match bytes.next().or_else(|| Some(Err(io::Error::new(io::ErrorKind::Other, "EOF in getpass!")))) {
             Some(Ok(byte)) => {
                 // 0x4 is EOT; aka ctrl-D
                 if byte == 0x4 && utf8.is_empty() {
@@ -224,7 +226,7 @@ fn getpass(prompt: &str) -> io::Result<String> {
                 let mut valid_utf8 = false;
                 if let Ok(c) = std::str::from_utf8(&utf8) {
                     if c == "\n" {
-                        printf!("\n");
+                        println!("");
                         break;
                     } else {
                         valid_utf8 = true;
@@ -245,12 +247,12 @@ fn getpass(prompt: &str) -> io::Result<String> {
     }
 
     termios.c_lflag = old;
-    tcsetattr(0, TCSAFLUSH, &mut termios).expect("failed to reset termios settings");
+    tcsetattr(0, TCSAFLUSH, &termios).expect("failed to reset termios settings");
 
     Ok(line)
 }
 
-fn do_backups(backups: &Vec<Backup>, path: &Path) {
+fn do_backups(backups: &[Backup], path: &Path) {
     if backups.is_empty() {
         println!("Nothing to do.");
         return;
@@ -291,20 +293,20 @@ fn do_backups(backups: &Vec<Backup>, path: &Path) {
 
 fn interactive_backup(backups_dir: &Path) {
     let z = ZSnapMgr::new(USE_SUDO);
-    let mut volumes: Vec<Backup> = gather_volumes(backups_dir);
+    let mut backups: Vec<Backup> = gather_volumes(backups_dir);
     loop {
-        let mut table = Table::new(&vec!["_", "volume", "incremental", "snapshot date"]);
-        for i in 0..volumes.len() {
-            let start = if volumes[i].start_snapshot.is_none() {
+        let mut table = Table::new(&["_", "volume", "incremental", "snapshot date"]);
+        for (i, backup) in backups.iter().enumerate() {
+            let start = if backup.start_snapshot.is_none() {
                 "full backup".to_string()
             } else {
-                volumes[i].start_snapshot.as_ref().unwrap().clone()
+                backup.start_snapshot.as_ref().unwrap().clone()
             };
 
             table.push(vec![(i + 1).to_string(),
-                            volumes[i].volume.clone(),
+                            backup.volume.clone(),
                             start,
-                            volumes[i].end_snapshot.as_ref().unwrap().clone()]);
+                            backup.end_snapshot.as_ref().unwrap().clone()]);
         }
 
         println!("Volumes to backup:\n{}", table);
@@ -351,14 +353,14 @@ fn interactive_backup(backups_dir: &Path) {
                 }
             }
 
-            volumes.push(Backup {
+            backups.push(Backup {
                 filename_base: vol.replace("/", "_").to_string(),
                 volume: vol.clone(),
                 start_snapshot: None,
                 end_snapshot: Some(latest_snap),
             });
 
-        } else if input.starts_with("-") {
+        } else if input.starts_with('-') {
 
             let index: usize;
 
@@ -390,14 +392,14 @@ fn interactive_backup(backups_dir: &Path) {
                 }
             }
 
-            if volumes.len() < index || index == 0 {
+            if backups.len() < index || index == 0 {
                 println!("Number out of range.\n");
                 continue;
             }
 
-            volumes.remove(index - 1);
+            backups.remove(index - 1);
 
-        } else if input.starts_with("d") || input.starts_with("D") {
+        } else if input.starts_with('d') || input.starts_with('D') {
 
             printf!("Snapshot date (yyyy-MM-dd): ");
 
@@ -405,14 +407,14 @@ fn interactive_backup(backups_dir: &Path) {
             io::stdin().read_line(&mut date).unwrap();
             date.pop();
 
-            for volume in volumes.iter_mut() {
-                volume.end_snapshot = Some(date.clone());
+            for backup in &mut backups {
+                backup.end_snapshot = Some(date.clone());
                 //TODO: check that the snapshot exists for that volume
             }
 
         } else if input.is_empty() {
             println!("Starting backups.\n");
-            do_backups(&volumes, backups_dir);
+            do_backups(&backups, backups_dir);
             break;
         } else {
             let index: usize;
@@ -427,12 +429,12 @@ fn interactive_backup(backups_dir: &Path) {
                 }
             }
 
-            if volumes.len() < index || index == 0 {
+            if backups.len() < index || index == 0 {
                 println!("Number out of range.\n");
                 continue;
             }
 
-            let vol = volumes.get_mut(index - 1).unwrap();
+            let vol = backups.get_mut(index - 1).unwrap();
 
             printf!("Change (I)ncremental starting snapshot, (S)napshot date: ");
 

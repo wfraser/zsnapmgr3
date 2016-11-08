@@ -43,7 +43,7 @@ impl InheritablePipe {
     }
 
     pub fn child_fd(&self) -> c_int {
-        return self.child_fd;
+        self.child_fd
     }
 
     pub fn close_child_fd(&mut self) -> Result<()> {

@@ -62,9 +62,10 @@ impl Backups {
         }
     }
 
-    pub fn values(self) -> Vec<Backup> {
+    #[allow(for_kv_map)]
+    pub fn into_values(self) -> Vec<Backup> {
         let mut vec: Vec<Backup> = Vec::new();
-        for (_k, v) in self.backups_by_volume.into_iter() {
+        for (_k, v) in self.backups_by_volume {
             if v.end_snapshot.is_some() {
                 vec.push(v);
             }
@@ -72,7 +73,7 @@ impl Backups {
         vec
     }
 
-    pub fn iter_mut<'a>(&'a mut self) -> BackupsIterMut<'a> {
+    pub fn iter_mut(&mut self) -> BackupsIterMut {
         BackupsIterMut { iter_mut: self.backups_by_volume.iter_mut() }
     }
 }

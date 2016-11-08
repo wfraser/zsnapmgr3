@@ -19,19 +19,16 @@ pub struct ZFS {
     pub use_sudo: bool,
 }
 
-fn get_first_column(bytes: &Vec<u8>) -> Vec<String> {
+fn get_first_column(bytes: &[u8]) -> Vec<String> {
     let mut results: Vec<String> = Vec::new();
 
     for line in String::from_utf8_lossy(bytes).lines() {
         if !line.trim().is_empty() {
             let mut split = line.splitn(2, '\t');
-            match (split.next(), split.next()) {
-                (Some(field), Some(noautosnap)) => {
-                    if !noautosnap.starts_with("yes") {
-                        results.push(String::from(field));
-                    }
+            if let (Some(field), Some(noautosnap)) = (split.next(), split.next()) {
+                if !noautosnap.starts_with("yes") {
+                    results.push(String::from(field));
                 }
-                _ => (),
             }
         }
     }
@@ -42,7 +39,7 @@ fn get_first_column(bytes: &Vec<u8>) -> Vec<String> {
 fn read_line<R: Read>(r: &mut R) -> Result<Option<String>, Error> {
     let mut line = String::new();
     loop {
-        let mut buf = [0 as u8];
+        let mut buf = [0u8; 1];
         match r.read(&mut buf) {
             Ok(bytes_read) => {
                 if bytes_read == 0 {
@@ -51,7 +48,7 @@ fn read_line<R: Read>(r: &mut R) -> Result<Option<String>, Error> {
                     } else {
                         return Ok(Some(line));
                     }
-                } else if buf[0] == '\n' as u8 {
+                } else if buf[0] == b'\n' {
                     return Ok(Some(line));
                 } else {
                     line.push(buf[0] as char);   // we're assuming pure ASCII here.
@@ -152,17 +149,12 @@ impl ZFS {
         // The "$0", "$1", "$2" are replaced by the additional arguments passed to sh.
         // This is nice because it means they can contain any characters and require no escaping.
 
-        let cmdline = (if self.use_sudo {
-                          "sudo zfs"
-                      } else {
-                          "zfs"
-                      })
-                      .to_owned() + " send -P -v " +
-                      incremental.and(Some("-i $0")).or(Some("")).unwrap() +
-                      " $1 " +
-                      &filter_program.and_then(|f| Some(" | ".to_string() + f))
-                                     .or(Some("".to_string()))
-                                     .unwrap() + " > $2";
+        let cmdline = format!("{} send -P -v {} $1 {}{} > $2",
+            if self.use_sudo { "sudo zfs" } else { "zfs" },
+            if incremental.is_some() { "-i $0" } else { "" },
+            if filter_program.is_some() { " | " } else { "" },
+            filter_program.unwrap_or("")
+        );
 
         let mut partial_filename = destination_path.file_name().unwrap().to_os_string();
         partial_filename.push("_partial");

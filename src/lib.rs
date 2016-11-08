@@ -4,7 +4,9 @@
 //
 
 use std::collections::btree_map::*;
+use std::ffi::OsString;
 use std::io::Write;
+use std::path::Path;
 
 extern crate chrono;
 use chrono::*;
@@ -96,7 +98,7 @@ impl ZSnapMgr {
     }
 
     pub fn backup(&self,
-                  path: &str,
+                  path: &Path,
                   snapshot: &str,
                   passphrase: &str,
                   incremental_start: Option<&str>)
@@ -106,8 +108,10 @@ impl ZSnapMgr {
 
         zfstry!(write!(passphrase_pipe, "{}\n", passphrase), or "failed to write passphrase to pipe");
 
+        let destination_path = path.join(OsString::from(snapshot.replace("/", "_") + ".zfs.bz2.gpg"));
+
         self.zfs.send(snapshot,
-                      &format!("{}/{}.zfs.bz2.gpg", path, snapshot.replace("/", "_")),
+                      &destination_path,
                       incremental_start,
                       Some(&format!("pbzip2 | gpg --batch --symmetric --passphrase-fd {} \
                                      --output -",

@@ -8,6 +8,7 @@ use std::fs;
 use std::process::{Child, Command, Stdio};
 use std::io::{stdout, Error, Read, Write};
 use std::iter::repeat;
+use std::path::Path;
 
 use zfs_error::ZfsError;
 
@@ -142,7 +143,7 @@ impl ZFS {
 
     pub fn send(&self,
                 snapshot: &str,
-                destination_filename: &str,
+                destination_path: &Path,
                 incremental: Option<&str>,
                 filter_program: Option<&str>)
                 -> Result<(), ZfsError> {
@@ -163,14 +164,16 @@ impl ZFS {
                                      .or(Some("".to_string()))
                                      .unwrap() + " > $2";
 
-        let partial_filename = destination_filename.to_string() + "_partial";
+        let mut partial_filename = destination_path.file_name().unwrap().to_os_string();
+        partial_filename.push("_partial");
+        let partial_path = destination_path.with_file_name(partial_filename);
 
         let mut child: Child = zfstry!(Command::new("sh")
             .arg("-c")
             .arg(&cmdline)
             .arg(incremental.or(Some("")).unwrap())
             .arg(snapshot)
-            .arg(&partial_filename)
+            .arg(&partial_path)
             .stdin(Stdio::inherit())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -247,9 +250,9 @@ impl ZFS {
         }
 
         if size == 0 {
-            zfstry!(fs::remove_file(&partial_filename), or "failed to remove empty partial file");
+            zfstry!(fs::remove_file(&partial_path), or "failed to remove empty partial file");
         } else {
-            zfstry!(fs::rename(&partial_filename, destination_filename), or "failed to move partial file to destination");
+            zfstry!(fs::rename(&partial_path, destination_path), or "failed to move partial file to destination");
         }
 
         Ok(())

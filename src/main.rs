@@ -4,10 +4,13 @@
 //
 
 use std::env;
+use std::ffi::{OsStr, OsString};
+use std::fs;
 use std::iter::Iterator;
 use std::io;
 use std::io::{Read, Write};
 use std::ops::Deref;
+use std::path::Path;
 use std::process;
 
 extern crate termios;
@@ -56,26 +59,44 @@ impl<T: Deref> VecDeref<T> for Vec<T> {
     }
 }
 
-fn enumerate_files(path: &str) -> Box<Iterator<Item = String>> {
-    let out = std::fs::read_dir(std::path::Path::new(path))
-                  .expect("error reading directory")
-                  .map(|entry_result| entry_result.expect("error enumerating files"))
-                  .filter(|entry| {
-                      match entry.file_type() {
-                          Ok(ft) => ft.is_file(),
-                          Err(e) => {
-                              println!("error getting file type of \"{}\": {}",
-                                       entry.path().to_string_lossy(),
-                                       e);
-                              false
-                          }
-                      }
-                  })
-                  .map(|entry| entry.file_name().to_string_lossy().into_owned());
-    Box::new(out)
+fn enumerate_files(path: &Path) -> Result<Box<Iterator<Item = String>>, io::Error> {
+    let readdir = try!(fs::read_dir(path));
+    let iter = readdir.filter_map(|entry_result| {
+        match entry_result {
+            Ok(entry) => {
+                match entry.file_type() {
+                    Ok(ft) => {
+                        if ft.is_file() {
+                            let path = entry.path();
+                            let filename: &OsStr = path.file_name().unwrap();
+                            match filename.to_str() {
+                                Some(s) => Some(s.to_owned()),
+                                None => {
+                                    println!("error: filename {:?} is invalid UTF-8!", filename);
+                                    None
+                                }
+                            }
+                        } else {
+                            None
+                        }
+                    },
+                    Err(e) => {
+                        println!("error getting file type of {:?}: {}",
+                            entry.path(), e);
+                        None
+                    }
+                }
+            },
+            Err(e) => {
+                println!("error enumerating files: {}", e);
+                None
+            }
+        }
+    });
+    Ok(Box::new(iter))
 }
 
-fn gather_volumes(path: &str) -> Vec<Backup> {
+fn gather_volumes(path: &Path) -> Vec<Backup> {
     let z = ZSnapMgr::new(USE_SUDO);
     let snapshots: Vec<String> = match z.get_snapshots(None) {
         Ok(s) => s,
@@ -95,10 +116,18 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
 
     let mut backups = Backups::new();
 
-    for filename in enumerate_files(path) {
-        if let Some(zfs_pos) = filename.find(".zfs") {
-            if !(&filename).ends_with("_partial") {
-                let parts = filename[0..zfs_pos].splitn(2, '@').collect::<Vec<&str>>();
+    let file_iter = match enumerate_files(path) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error enumerating snapshot files: {}", e);
+            return vec![];
+        }
+    };
+
+    for file_path in file_iter {
+        if let Some(zfs_pos) = file_path.find(".zfs") {
+            if !(&file_path).ends_with("_partial") {
+                let parts = file_path[0..zfs_pos].splitn(2, '@').collect::<Vec<&str>>();
                 let volume_name = parts[0].replace("_", "/");
                 let backup_snap = parts[1];
 
@@ -120,7 +149,7 @@ fn gather_volumes(path: &str) -> Vec<Backup> {
                                        matches[0].to_string(),
                                        Some(backup_snap.to_string()));
                     } else {
-                        print!("Backup filename \"{}\" ", filename);
+                        print!("Backup filename \"{}\" ", file_path);
                         if matches.len() > 1 {
                             println!("matches more than one volume.\nIt could be any of: {:?}",
                                      matches);
@@ -221,7 +250,7 @@ fn getpass(prompt: &str) -> io::Result<String> {
     Ok(line)
 }
 
-fn do_backups(backups: &Vec<Backup>, path: &str) {
+fn do_backups(backups: &Vec<Backup>, path: &Path) {
     if backups.is_empty() {
         println!("Nothing to do.");
         return;
@@ -260,7 +289,7 @@ fn do_backups(backups: &Vec<Backup>, path: &str) {
     }
 }
 
-fn interactive_backup(backups_dir: &str) {
+fn interactive_backup(backups_dir: &Path) {
     let z = ZSnapMgr::new(USE_SUDO);
     let mut volumes: Vec<Backup> = gather_volumes(backups_dir);
     loop {
@@ -451,32 +480,32 @@ fn snapshot_automanage() {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let program_name = &args[0].rsplitn(2, '/').next().unwrap();
+    let args: Vec<OsString> = env::args_os().collect();
+    let program_name = Path::new(&args[0]);
 
     let command = if args.len() < 2 {
-        "help"
+        OsStr::new("help")
     } else {
         args[1].as_ref()
     };
 
-    match command {
-        "backup" => {
+    match command.to_str() {
+        Some("backup") => {
             if args.len() == 3 {
-                interactive_backup(&args[2]);
+                interactive_backup(Path::new(&args[2]));
             } else {
-                println!("usage: {} backup <backups_location>", program_name);
+                println!("usage: {} backup <backups_location>", program_name.display());
                 process::exit(-1);
             }
         }
-        "automanage" => {
+        Some("automanage") => {
             snapshot_automanage();
         }
         _ => {
             if command != "help" {
-                println!("unknown command \"{}\"", command);
+                println!("unknown command \"{}\"", command.to_str().unwrap_or("[bad utf8]"));
             }
-            println!("usage: {} <backup | automanage> [options]", program_name);
+            println!("usage: {} <backup | automanage> [options]", program_name.display());
             process::exit(-1);
         }
     }

@@ -147,7 +147,7 @@ impl ZSnapMgr {
             for (snap_date, snap) in snaps.iter().rev() {
                 count += 1;
 
-                let days_old = (today - *snap_date).num_days();
+                let days_old = (today.signed_duration_since(*snap_date)).num_days();
 
                 if (count == 1) && (days_old != 0) {
                     println!("{}\t{}\t0 days old\t#1\t[NEW]", volume, today_str);

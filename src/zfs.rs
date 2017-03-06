@@ -204,7 +204,7 @@ impl ZFS {
                         let time = Local::today().and_hms(time_parts[0],
                                                           time_parts[1],
                                                           time_parts[2]);
-                        let elapsed = time - start_time;
+                        let elapsed = time.signed_duration_since(start_time);
 
                         let partial_size: u64;
                         if let Ok(n) = parts[1].parse::<u64>() {

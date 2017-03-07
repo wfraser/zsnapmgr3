@@ -8,12 +8,15 @@ use std::fs;
 use std::process::{Child, Command, Stdio};
 use std::io::{stdout, Error, Read, Write};
 use std::iter::repeat;
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
+use std::thread;
 
+use hash_stream;
 use zfs_error::ZfsError;
 
-extern crate chrono;
 use chrono::*;
+use ring::digest::SHA256;
 
 pub struct ZFS {
     pub use_sudo: bool,
@@ -146,10 +149,10 @@ impl ZFS {
                 -> Result<(), ZfsError> {
 
         // This uses 'sh -c' to run the pipeline because it's less work for us.
-        // The "$0", "$1", "$2" are replaced by the additional arguments passed to sh.
+        // The "$0" and "$1" are replaced by the additional arguments passed to sh.
         // This is nice because it means they can contain any characters and require no escaping.
 
-        let cmdline = format!("{} send -P -v {} $1 {}{} > $2",
+        let cmdline = format!("{} send -P -v {} $1 {}{}",
             if self.use_sudo { "sudo zfs" } else { "zfs" },
             if incremental.is_some() { "-i $0" } else { "" },
             if filter_program.is_some() { " | " } else { "" },
@@ -158,18 +161,42 @@ impl ZFS {
 
         let mut partial_filename = destination_path.file_name().unwrap().to_os_string();
         partial_filename.push("_partial");
-        let partial_path = destination_path.with_file_name(partial_filename);
+        let partial_path = destination_path.with_file_name(&partial_filename);
 
         let mut child: Child = zfstry!(Command::new("sh")
             .arg("-c")
             .arg(&cmdline)
             .arg(incremental.or(Some("")).unwrap())
             .arg(snapshot)
-            .arg(&partial_path)
             .stdin(Stdio::inherit())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn(), or "failed to run 'zfs send'");
+
+        let mut backup_out = child.stdout.take();
+        let partial_path2 = partial_path.clone();
+
+        let mut sidecar_filename = partial_filename.clone();
+        sidecar_filename.push(".sha256sum");
+        let partial_sidecar_path = partial_path.with_file_name(sidecar_filename);
+        let partial_sidecar_path2 = partial_sidecar_path.clone();
+
+        let mut destination_sidecar_filename = destination_path.file_name().unwrap().to_os_string();
+        destination_sidecar_filename.push(".sha256sum");
+        let destination_sidecar_path = destination_path.with_file_name(destination_sidecar_filename);
+
+        let read_thread = thread::spawn(move || {
+            if let Err(e) = hash_stream::write_file_and_sidecar(
+                backup_out.as_mut().unwrap(),
+                &partial_path2,
+                &partial_sidecar_path2,
+                &SHA256)
+            {
+                let msg = format!("Error reading/writing 'zfs send' pipeline: {}", e);
+                println!("{}", msg);
+                panic!(msg);
+            }
+        });
 
         let mut size: u64 = 0;
         let mut last_line_length: isize = 0;
@@ -235,6 +262,12 @@ impl ZFS {
             }
         }
 
+        if let Err(e) = read_thread.join() {
+            println!("read thread died");
+            let msg: &str = e.downcast_ref::<String>().unwrap().as_str();
+            return Err(ZfsError::from(msg));
+        }
+
         let exit_status = (&mut child).wait().unwrap();
         if !exit_status.success() {
             let code = exit_status.code().or(Some(0)).unwrap();
@@ -244,7 +277,18 @@ impl ZFS {
         if size == 0 {
             zfstry!(fs::remove_file(&partial_path), or "failed to remove empty partial file");
         } else {
-            zfstry!(fs::rename(&partial_path, destination_path), or "failed to move partial file to destination");
+            zfstry!(fs::rename(&partial_path, &destination_path),
+                or "failed to move partial file to destination");
+            zfstry!(fs::rename(&partial_sidecar_path, &destination_sidecar_path),
+                or "failed to move partial file sidecar to destination");
+            let mut sidecar = zfstry!(
+                fs::OpenOptions::new().append(true).open(&destination_sidecar_path),
+                    or "failed to update hash sidecar (1)");
+
+            let mut bytes = b" *".to_vec();
+            bytes.extend_from_slice(destination_path.file_name().unwrap().as_bytes());
+            bytes.extend_from_slice(b"\n");
+            zfstry!(sidecar.write_all(&bytes), or "failed to update hash sidecar (2)");
         }
 
         Ok(())

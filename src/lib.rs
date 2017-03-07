@@ -9,17 +9,19 @@ use std::io::Write;
 use std::path::Path;
 
 extern crate chrono;
+extern crate libc;
+extern crate ring;
+
 use chrono::*;
 
-#[macro_use]
-mod zfs_error;
-use zfs_error::ZfsError;
-
-mod zfs;
-use zfs::ZFS;
-
+#[macro_use] mod zfs_error; // include this first because its macros are used in other modules.
+mod hash_stream;
 mod inheritable_pipe;
+mod zfs;
+
 use inheritable_pipe::InheritablePipe;
+use zfs::ZFS;
+use zfs_error::ZfsError;
 
 pub struct ZSnapMgr {
     zfs: ZFS,

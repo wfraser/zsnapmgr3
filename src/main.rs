@@ -434,7 +434,7 @@ fn interactive_backup(backups_dir: &Path) {
                 continue;
             }
 
-            let vol = backups.get_mut(index - 1).unwrap();
+            let vol = &mut backups[index - 1];
 
             printf!("Change (I)ncremental starting snapshot, (S)napshot date: ");
 

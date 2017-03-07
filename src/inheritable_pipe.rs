@@ -7,8 +7,7 @@ use std::fs::File;
 use std::io::{Error, Read, Result, Write};
 use std::os::unix::io::FromRawFd;
 
-extern crate libc;
-use self::libc::c_int;
+use libc::{self, c_int};
 
 pub struct InheritablePipe {
     child_fd: c_int,

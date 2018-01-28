@@ -10,6 +10,7 @@ use std::io::{stdout, Error, Read, Write};
 use std::iter::repeat;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
+use std::sync::Arc;
 use std::thread;
 
 use hash_stream;
@@ -185,12 +186,15 @@ impl ZFS {
         destination_sidecar_filename.push(".sha256sum");
         let destination_sidecar_path = destination_path.with_file_name(destination_sidecar_filename);
 
+        let output_progress = Arc::new(hash_stream::AtomicU64::new(0));
+        let output_progress_hashthread = Arc::clone(&output_progress);
         let read_thread = thread::spawn(move || {
             if let Err(e) = hash_stream::write_file_and_sidecar(
                 backup_out.as_mut().unwrap(),
                 &partial_path2,
                 &partial_sidecar_path2,
-                &SHA256)
+                &SHA256,
+                &output_progress_hashthread)
             {
                 let msg = format!("Error reading/writing 'zfs send' pipeline: {}", e);
                 println!("{}", msg);
@@ -241,13 +245,18 @@ impl ZFS {
                             return Err(ZfsError::from(msg));
                         }
 
+                        let output_size = output_progress.load(::std::sync::atomic::Ordering::Relaxed);
+                        let compratio: f64 = 100. - (output_size as f64) / (partial_size as f64) * 100.;
+
                         let percent: f64 = (partial_size as f64) / (size as f64) * 100.;
-                        let outline = format!("{:02}:{:02}:{:02} {:.1}% {}B",
+                        let outline = format!("{:02}:{:02}:{:02} {:.1}% {}B in {}B out ({:.1}% compressed)",
                                               elapsed.num_hours(),
                                               elapsed.num_minutes() % 60,
                                               elapsed.num_seconds() % 60,
                                               percent,
-                                              human_number(partial_size, 1));
+                                              human_number(partial_size, 1),
+                                              human_number(output_size, 1),
+                                              compratio);
                         let spacing =
                             cmp::max(0, last_line_length - outline.len() as isize) as usize;
                         print!("\r{}{}",
@@ -261,6 +270,7 @@ impl ZFS {
                 Err(e) => return Err(ZfsError::from(("error reading from 'zfs send' pipeline", e))),
             }
         }
+        println!();
 
         if let Err(e) = read_thread.join() {
             println!("read thread died");

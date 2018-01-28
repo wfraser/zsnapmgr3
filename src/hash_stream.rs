@@ -3,6 +3,34 @@ use ring::digest::*;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[cfg(target_pointer_width = "64")]
+//pub type AtomicU64 = AtomicUsize;
+pub struct AtomicU64 {
+    inner: AtomicUsize,
+}
+
+#[cfg(target_pointer_width = "64")]
+impl AtomicU64 {
+    pub fn new(initial: u64) -> Self {
+        Self {
+            inner: AtomicUsize::new(initial as usize),
+        }
+    }
+
+    pub fn load(&self, order: Ordering) -> u64 {
+        self.inner.load(order) as u64
+    }
+
+    pub fn fetch_add(&self, val: u64, order: Ordering) -> u64 {
+        self.inner.fetch_add(val as usize, order) as u64
+    }
+}
+
+
+#[cfg(not(target_pointer_width = "64"))]
+pub type AtomicU64 = !; // until the proper AtomicU64 type is stable, this needs to be compiled 64-bit.
 
 pub struct HashingWrite<T: Write> {
     ctx: Context,
@@ -27,6 +55,7 @@ pub fn write_file_and_sidecar<R: Read>(
     path: &Path,
     sidecar_path: &Path,
     algo: &'static Algorithm,
+    progress: &AtomicU64,
     ) -> Result<(), String>
 {
     /*
@@ -43,6 +72,7 @@ pub fn write_file_and_sidecar<R: Read>(
         match input.read(&mut buf) {
             Ok(0) => break,
             Ok(nread) => {
+                progress.fetch_add(nread as u64, Ordering::Relaxed);
                 match hash_out.write(&buf[0..nread]) {
                     Ok(nwritten) => {
                         if nwritten != nread {

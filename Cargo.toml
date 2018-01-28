@@ -6,7 +6,8 @@ authors = ["William R. Fraser <wfraser@codewise.org>"]
 [dependencies]
 chrono = "0.3"
 libc = "0.2"
-ring = "0.7"
+regex = "0.2"
+ring = "0.12"
 termios = "0.2"
 
 [[bin]]

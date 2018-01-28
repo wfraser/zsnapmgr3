@@ -15,6 +15,9 @@ use std::ops::Deref;
 use std::path::Path;
 use std::process;
 
+extern crate regex;
+use regex::Regex;
+
 extern crate termios;
 use termios::*;
 
@@ -130,6 +133,10 @@ fn gather_volumes(path: &Path) -> Vec<Backup> {
         if let Some(zfs_pos) = file_path.find(".zfs") {
             if !(&file_path).ends_with("_partial") {
                 let parts = file_path[0..zfs_pos].splitn(2, '@').collect::<Vec<&str>>();
+                if parts.len() != 2 {
+                    println!("ERROR: malformed ZFS filename: {:?}", file_path);
+                    continue;
+                }
                 let volume_name = parts[0].replace("_", "/");
                 let backup_snap = parts[1];
 
@@ -165,13 +172,18 @@ fn gather_volumes(path: &Path) -> Vec<Backup> {
         }
     }
 
+    let date_regex = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
+
     // Now fill in the latest snapshot available for each volume in the proposed backups.
     for backup in backups.iter_mut() {
         let volume_at = backup.volume.clone() + "@";
-        let volume_snaps: Vec<&str> = snapshots.iter()
-                                               .filter(|snap| snap.starts_with(&volume_at))
-                                               .map(Deref::deref)
-                                               .collect();
+        let mut volume_snaps: Vec<&str> = snapshots
+                .iter()
+                .filter(|snap| snap.starts_with(&volume_at)
+                        && date_regex.is_match(snap.split_at(volume_at.len()).1))
+                .map(Deref::deref)
+                .collect();
+        volume_snaps.sort();
 
         if backup.start_snapshot.is_some() {
             // Check that the start snapshot still exists.
@@ -335,14 +347,17 @@ fn interactive_backup(backups_dir: &Path) {
             io::stdin().read_line(&mut vol).unwrap();
             vol.pop();
 
-            let latest_snap: String;
-            match z.get_snapshots(Some(&vol))
+            let latest_snap: String = match z.get_snapshots(Some(&vol))
                    .and_then(|ref mut snaps| {
-                       Ok(snaps.pop())
-                    }) {
-                Ok(Some(snap)) => {
-                    latest_snap = snap;
-                }
+                       Ok(snaps.pop()
+                            .and_then(|full_name| {
+                                full_name.rsplitn(2, '@')
+                                    .next()
+                                    .map(|s| s.to_owned())
+                            }))
+                   })
+            {
+                Ok(Some(date)) => date,
                 Ok(None) => {
                     println!("No snapshots available for that volume.\n");
                     continue;
@@ -351,7 +366,7 @@ fn interactive_backup(backups_dir: &Path) {
                     println!("Error listing snapshots: {}\n", e);
                     continue;
                 }
-            }
+            };
 
             backups.push(Backup {
                 filename_base: vol.replace("/", "_").to_string(),

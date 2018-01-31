@@ -47,12 +47,28 @@ fn date_from_snapshot(snap: &str) -> Option<Date<Local>> {
     Some(Local.ymd(dateparts[0], dateparts[1] as u32, dateparts[2] as u32))
 }
 
-trait WeekOfYear {
-    fn week_of_year(&self) -> u32;
+trait Succ {
+    fn succ(&self) -> Self;
 }
 
-impl<T: Datelike> WeekOfYear for T {
-    fn week_of_year(&self) -> u32 {
+trait WeekOfYear {
+    fn week_of_year(&self) -> IsoWeek;
+}
+
+impl<Tz: TimeZone> Succ for Date<Tz> {
+    fn succ(&self) -> Self {
+        Date::<Tz>::succ(self)
+    }
+}
+
+impl Succ for NaiveDate {
+    fn succ(&self) -> Self {
+        NaiveDate::succ(self)
+    }
+}
+
+impl<T: Datelike + Succ> WeekOfYear for T {
+    fn week_of_year(&self) -> IsoWeek {
         // The original C# version of this program used System.Globalization.Calendar.GetWeekOfYear
         // for this, using System.Globalization.DateTimeFormatInfo.InvariantInfo for the
         // parameters.
@@ -62,27 +78,26 @@ impl<T: Datelike> WeekOfYear for T {
         // The first day of the week is designated as Sunday.
         //
         // This is similar to the ISO week date, except that ISO week date has:
-        //  week starting on Monday
-        //  the first week of the year can be 53
+        //  - week starting on Monday
+        //  - the first day of the year can be week 53 from the previous year (week 1 is defined as
+        //    being the first week containing January 4 of that year)
         //
         // This isn't going to replicate the C# method exactly - the value can be +/- 1 depending
         // on which year it is for.
         // Figuring out whether to add 1 or not depending on the year is hard, and this method is
-        // only used for finding the first snapshot in a week, so the difference isn't important.
+        // only used for finding the first snapshot in a week, so the difference isn't important,
+        // as long as days in the same week get the same value.
+        // In fact, the C# method wouldn't even uphold this property on the first week of the year
+        // usually -- it would unconditionally change from 53 or 54 to 1 mid-week. This method does
+        // not.
 
-        let weekdate = self.isoweekdate();
-        let mut week_number = weekdate.1;
-
-        // Week starts on Sunday.
-        if weekdate.2 == Weekday::Sun {
-            if week_number == 53 {
-                week_number = 1;
-            } else {
-                week_number += 1;
-            }
+        if self.weekday() == Weekday::Sun {
+            // We want weeks starting on Sunday, so if it's Sunday, use the ISO week number for
+            // tomorrow.
+            self.succ().iso_week()
+        } else {
+            self.iso_week()
         }
-
-        week_number
     }
 }
 
@@ -163,41 +178,49 @@ impl ZSnapMgr {
                        days_old,
                        count);
 
-                let mut delete = false;
+                // Give the tuple elements names.
+                struct Pair<'a> {
+                    date: &'a Date<Local>, 
+                    snap: &'a str,
+                };
+
+                const ISO8601_DATE_FMT: &str = "%Y-%m-%d";
+
+                let mut delete = None::<String>; // set to Some(reason) if deletion should happen
 
                 let first_of_month = snaps.iter()
-                                          .rev()
-                                          .find(|&(&date, _)| {
-                                              date.year() == snap_date.year() &&
-                                              date.month() == snap_date.month()
+                                          .map(|(date, snap)| Pair { date, snap })
+                                          .find(|pair| {
+                                              pair.date.year() == snap_date.year() &&
+                                              pair.date.month() == snap_date.month()
                                           })
-                                          .unwrap()
-                                          .1;
+                                          .unwrap();
 
                 if count > 60 {
                     // Keep only the first snapshot of the month.
-                    if first_of_month != snap {
-                        delete = true;
+                    if first_of_month.snap != snap {
+                        delete = Some(format!("not first of month ({})",
+                            first_of_month.date.format(ISO8601_DATE_FMT)));
                     }
                 } else if count > 30 {
                     // Keep only the first snapshot of the week or month.
                     let first_of_week = snaps.iter()
-                                             .rev()
-                                             .find(|&(&date, _)| {
-                                                 date.year() == snap_date.year() &&
-                                                 date.week_of_year() == snap_date.week_of_year()
+                                             .map(|(date, snap)| Pair { date, snap })
+                                             .find(|pair| {
+                                                 pair.date.week_of_year() == snap_date.week_of_year()
                                              })
-                                             .unwrap()
-                                             .1;
+                                             .unwrap();
 
-                    if first_of_week != snap &&
-                       first_of_month != snap {
-                        delete = true;
+                    if first_of_week.snap != snap &&
+                       first_of_month.snap != snap {
+                        delete = Some(format!("not first of month ({}) or first of week ({})",
+                            first_of_month.date.format(ISO8601_DATE_FMT),
+                            first_of_week.date.format(ISO8601_DATE_FMT)));
                     }
                 }
 
-                if delete {
-                    print!("\t[DELETE]");
+                if let Some(why) = delete {
+                    print!("\t[DELETE] {}", why);
                     to_delete.push(snap.to_string());
                 }
 

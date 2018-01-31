@@ -4,11 +4,11 @@ version = "0.0.1"
 authors = ["William R. Fraser <wfraser@codewise.org>"]
 
 [dependencies]
-chrono = "0.3"
+chrono = "0.4"
 libc = "0.2"
 regex = "0.2"
 ring = "0.12"
-termios = "0.2"
+termios = "0.3"
 
 [[bin]]
 name = "zsnapmgr"

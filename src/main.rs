@@ -64,7 +64,7 @@ impl<T: Deref> VecDeref<T> for Vec<T> {
     }
 }
 
-fn enumerate_files(path: &Path) -> Result<Box<Iterator<Item = String>>, io::Error> {
+fn enumerate_files(path: &Path) -> Result<Box<dyn Iterator<Item = String>>, io::Error> {
     let readdir = try!(fs::read_dir(path));
     let iter = readdir.filter_map(|entry_result| {
         match entry_result {

@@ -25,7 +25,7 @@ impl error::Error for ZfsError {
     fn description(&self) -> &str {
         &self.descr
     }
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match self.io_error {
             Some(ref e) => Some(e),
             None => None,

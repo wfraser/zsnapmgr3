@@ -103,7 +103,7 @@ impl<T: Datelike + Succ> WeekOfYear for T {
 
 impl ZSnapMgr {
     pub fn new(use_sudo: bool) -> ZSnapMgr {
-        ZSnapMgr { zfs: ZFS { use_sudo: use_sudo } }
+        ZSnapMgr { zfs: ZFS { use_sudo } }
     }
 
     pub fn get_volumes(&self) -> Result<Vec<String>, ZfsError> {
@@ -224,7 +224,7 @@ impl ZSnapMgr {
                     to_delete.push(snap.to_string());
                 }
 
-                println!("");
+                println!();
             }
         }
 

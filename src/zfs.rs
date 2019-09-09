@@ -84,7 +84,7 @@ fn human_number(n: u64, decimals: usize) -> String {
 }
 
 #[test]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 fn test_human_number() {
     assert_eq!(human_number(            1, 1), "1");
     assert_eq!(human_number(          999, 1), "999");
@@ -115,11 +115,11 @@ impl ZFS {
            .arg(result_type)
            .arg("-o")
            .arg("name,zsnapmgr:noautosnap");
-        if volume.is_some() {
+        if let Some(volume) = volume {
             cmd.arg("-r")
                .arg("-d")
                .arg("1")
-               .arg(volume.unwrap());
+               .arg(volume);
         }
 
         match cmd.output() {

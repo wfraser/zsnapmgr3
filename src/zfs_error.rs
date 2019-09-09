@@ -26,10 +26,7 @@ impl error::Error for ZfsError {
         &self.descr
     }
     fn cause(&self) -> Option<&dyn error::Error> {
-        match self.io_error {
-            Some(ref e) => Some(e),
-            None => None,
-        }
+        self.io_error.as_ref().map(|e| e as _)
     }
 }
 
@@ -96,7 +93,7 @@ impl<'a> From<&'a str> for ZfsError {
 impl From<String> for ZfsError {
     fn from(descr: String) -> ZfsError {
         ZfsError {
-            descr: descr,
+            descr,
             io_error: None,
         }
     }

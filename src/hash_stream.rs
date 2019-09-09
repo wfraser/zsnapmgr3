@@ -41,7 +41,7 @@ impl<T: Write> HashingWrite<T> {
     pub fn new(inner: T, algo: &'static Algorithm) -> HashingWrite<T> {
         HashingWrite {
             ctx: Context::new(algo),
-            inner: inner,
+            inner,
         }
     }
 

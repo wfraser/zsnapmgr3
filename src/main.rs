@@ -189,7 +189,7 @@ fn gather_volumes(path: &Path) -> Vec<Backup> {
             // Check that the start snapshot still exists.
             let start_snapshot = volume_at.clone() + backup.start_snapshot.as_ref().unwrap();
 
-            if !volume_snaps.binary_search(&start_snapshot.deref()).is_ok() {
+            if volume_snaps.binary_search(&start_snapshot.deref()).is_err() {
                 println!("Snapshot \"{}\" doesn't exist any more; doing full backup instead.\n",
                          start_snapshot);
                 backup.start_snapshot = None;
@@ -238,7 +238,7 @@ fn getpass(prompt: &str) -> io::Result<String> {
                 let mut valid_utf8 = false;
                 if let Ok(c) = std::str::from_utf8(&utf8) {
                     if c == "\n" {
-                        println!("");
+                        println!();
                         break;
                     } else {
                         valid_utf8 = true;

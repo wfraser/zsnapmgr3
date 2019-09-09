@@ -53,16 +53,16 @@ impl Backups {
             }
             Entry::Vacant(entry) => {
                 entry.insert(Backup {
-                    filename_base: filename_base,
-                    volume: volume,
-                    start_snapshot: start_snapshot,
+                    filename_base,
+                    volume,
+                    start_snapshot,
                     end_snapshot: None,
                 });
             }
         }
     }
 
-    #[allow(for_kv_map)]
+    //#[allow(clippy::for_kv_map)]
     pub fn into_values(self) -> Vec<Backup> {
         let mut vec: Vec<Backup> = Vec::new();
         for (_k, v) in self.backups_by_volume {

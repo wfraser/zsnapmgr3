@@ -78,7 +78,7 @@ impl fmt::Display for Table {
         }
 
         write_measured(f, &self.headers, &measures, &self.pad_left)?;
-        write!(f, "\n")?;
+        writeln!(f)?;
 
         let mut total_measure = 0_usize;
         for (i, measure) in measures.iter().enumerate() {
@@ -87,13 +87,13 @@ impl fmt::Display for Table {
                 total_measure += 3;
             }
         }
-        write!(f, "{:-<1$}\n", "-", total_measure)?;
+        writeln!(f, "{:-<1$}", "-", total_measure)?;
 
         for row in &self.items {
             write_measured(f, &row, &measures, &self.pad_left)?;
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
 
-        write!(f, "\n")
+        writeln!(f)
     }
 }

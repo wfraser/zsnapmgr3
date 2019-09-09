@@ -28,11 +28,11 @@ impl InheritablePipe {
     pub fn new() -> Result<InheritablePipe> {
         let mut fds = [-1 as c_int, -1 as c_int];
         unsafe {
-            try!(check_err!(libc::pipe(&mut fds[0] as *mut c_int)));
+            check_err!(libc::pipe(&mut fds[0] as *mut c_int))?;
 
             // Set the FD_CLOEXEC flag on our end of the pipe, but not the child end.
-            let flags = try!(check_err!(libc::fcntl(fds[0], libc::F_GETFD)));
-            try!(check_err!(libc::fcntl(fds[1], libc::F_SETFD, flags | libc::FD_CLOEXEC)));
+            let flags = check_err!(libc::fcntl(fds[0], libc::F_GETFD))?;
+            check_err!(libc::fcntl(fds[1], libc::F_SETFD, flags | libc::FD_CLOEXEC))?;
 
             Ok(InheritablePipe {
                 child_fd: fds[0],
@@ -48,7 +48,7 @@ impl InheritablePipe {
     pub fn close_child_fd(&mut self) -> Result<()> {
         if self.child_fd != -1 {
             unsafe {
-                try!(check_err!(libc::close(self.child_fd)));
+                check_err!(libc::close(self.child_fd))?;
             }
             self.child_fd = -1;
         }

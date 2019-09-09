@@ -57,12 +57,12 @@ fn write_measured(f: &mut fmt::Formatter,
                   -> fmt::Result {
     for i in 0..measures.len() {
         if pad_left[i] {
-            try!(write!(f, "{:>1$}", row[i], measures[i]));
+            write!(f, "{:>1$}", row[i], measures[i])?;
         } else {
-            try!(write!(f, "{:<1$}", row[i], measures[i]));
+            write!(f, "{:<1$}", row[i], measures[i])?;
         }
         if i != measures.len() - 1 {
-            try!(write!(f, " | "));
+            write!(f, " | ")?;
         }
     }
     Ok(())
@@ -77,8 +77,8 @@ impl fmt::Display for Table {
             measure(&mut measures, row);
         }
 
-        try!(write_measured(f, &self.headers, &measures, &self.pad_left));
-        try!(write!(f, "\n"));
+        write_measured(f, &self.headers, &measures, &self.pad_left)?;
+        write!(f, "\n")?;
 
         let mut total_measure = 0_usize;
         for (i, measure) in measures.iter().enumerate() {
@@ -87,11 +87,11 @@ impl fmt::Display for Table {
                 total_measure += 3;
             }
         }
-        try!(write!(f, "{:-<1$}\n", "-", total_measure));
+        write!(f, "{:-<1$}\n", "-", total_measure)?;
 
         for row in &self.items {
-            try!(write_measured(f, &row, &measures, &self.pad_left));
-            try!(write!(f, "\n"));
+            write_measured(f, &row, &measures, &self.pad_left)?;
+            write!(f, "\n")?;
         }
 
         write!(f, "\n")

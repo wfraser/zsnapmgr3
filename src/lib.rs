@@ -142,7 +142,7 @@ impl ZSnapMgr {
                                 today.month(),
                                 today.day());
 
-        let mut all_snaps = try!(self.get_snapshots(None));
+        let mut all_snaps = self.get_snapshots(None)?;
         let mut snaps_map: BTreeMap<String, BTreeMap<Date<Local>, String>> = BTreeMap::new();
         for snap in all_snaps.drain(..) {
             let snap_date = match date_from_snapshot(&snap) {

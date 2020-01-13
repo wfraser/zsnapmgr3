@@ -71,7 +71,7 @@ fn enumerate_files(path: &Path) -> Result<Box<dyn Iterator<Item = String>>, io::
             Ok(entry) => {
                 match entry.file_type() {
                     Ok(ft) => {
-                        if ft.is_file() {
+                        if ft.is_file() || ft.is_symlink() {
                             let path = entry.path();
                             let filename: &OsStr = path.file_name().unwrap();
                             match filename.to_str() {

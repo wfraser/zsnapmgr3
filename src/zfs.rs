@@ -126,7 +126,7 @@ impl ZFS {
             Err(e) => Err(ZfsError::from(("failed to run 'zfs list'", e))),
             Ok(result) => {
                 if !result.status.success() {
-                    return Err(ZfsError::from(("failed to run 'zfs list'", &result.stderr)));
+                    return Err(ZfsError::from(("error from 'zfs list'", &result.stderr)));
                 }
 
                 Ok(get_first_column(&result.stdout))
@@ -177,7 +177,7 @@ impl ZFS {
         let mut backup_out = child.stdout.take();
         let partial_path2 = partial_path.clone();
 
-        let mut sidecar_filename = partial_filename.clone();
+        let mut sidecar_filename = partial_filename;
         sidecar_filename.push(".sha256sum");
         let partial_sidecar_path = partial_path.with_file_name(sidecar_filename);
         let partial_sidecar_path2 = partial_sidecar_path.clone();

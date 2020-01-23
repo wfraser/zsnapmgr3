@@ -26,7 +26,7 @@ impl Table {
                 table.headers.push((&heading[1..]).to_string());
             } else {
                 table.pad_left.push(false);
-                table.headers.push(heading.to_string());
+                table.headers.push((*heading).to_string());
             }
         }
 

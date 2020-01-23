@@ -125,12 +125,12 @@ impl ZSnapMgr {
 
         zfstry!(write!(passphrase_pipe, "{}\n", passphrase), or "failed to write passphrase to pipe");
 
-        let destination_path = path.join(OsString::from(snapshot.replace("/", "_") + ".zfs.bz2.gpg"));
+        let destination_path = path.join(OsString::from(snapshot.replace("/", "_") + ".zfs.zst.gpg"));
 
         self.zfs.send(snapshot,
                       &destination_path,
                       incremental_start,
-                      Some(&format!("pbzip2 | gpg --batch --symmetric --passphrase-fd {} \
+                      Some(&format!("zstd -T0 --size-hint=1000000000 | gpg --batch --symmetric --passphrase-fd {} \
                                      --output -",
                                     passphrase_pipe.child_fd())))
     }

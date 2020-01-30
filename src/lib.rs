@@ -10,6 +10,7 @@ use std::path::Path;
 
 extern crate chrono;
 extern crate libc;
+extern crate libzfs;
 extern crate ring;
 
 use chrono::*;
@@ -102,8 +103,10 @@ impl<T: Datelike + Succ> WeekOfYear for T {
 }
 
 impl ZSnapMgr {
-    pub fn new(use_sudo: bool) -> ZSnapMgr {
-        ZSnapMgr { zfs: ZFS { use_sudo } }
+    pub fn new(use_sudo: bool) -> Result<ZSnapMgr, ZfsError> {
+        Ok(ZSnapMgr {
+            zfs: ZFS::new(use_sudo)?,
+        })
     }
 
     pub fn get_volumes(&self) -> Result<Vec<String>, ZfsError> {
@@ -180,7 +183,7 @@ impl ZSnapMgr {
 
                 // Give the tuple elements names.
                 struct Pair<'a> {
-                    date: &'a Date<Local>, 
+                    date: &'a Date<Local>,
                     snap: &'a str,
                 };
 

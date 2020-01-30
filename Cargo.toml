@@ -6,6 +6,7 @@ authors = ["William R. Fraser <wfraser@codewise.org>"]
 [dependencies]
 chrono = "0.4"
 libc = "0.2"
+libzfs = { path = "zfs-rs" }
 regex = "1"
 ring = "0.13"
 termios = "0.3"

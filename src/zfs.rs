@@ -19,25 +19,11 @@ use zfs_error::ZfsError;
 use chrono::*;
 use ring::digest::SHA256;
 
+use libzfs::{DatasetType, DatasetTypeMask, LibZfs};
+
 pub struct ZFS {
+    client: LibZfs,
     pub use_sudo: bool,
-}
-
-fn get_first_column(bytes: &[u8]) -> Vec<String> {
-    let mut results: Vec<String> = Vec::new();
-
-    for line in String::from_utf8_lossy(bytes).lines() {
-        if !line.trim().is_empty() {
-            let mut split = line.splitn(2, '\t');
-            if let (Some(field), Some(noautosnap)) = (split.next(), split.next()) {
-                if !noautosnap.starts_with("yes") {
-                    results.push(String::from(field));
-                }
-            }
-        }
-    }
-
-    results
 }
 
 fn read_line<R: Read>(r: &mut R) -> Result<Option<String>, Error> {
@@ -96,50 +82,84 @@ fn test_human_number() {
     assert_eq!(human_number(1000000000000, 1), "1.0 T");
 }
 
+fn exclude_dataset(_ds: &libzfs::Dataset) -> bool {
+    // TODO: exclude ones with the 'zsnapmgr:noautosnap' property
+    false
+}
+
 impl ZFS {
-    fn zfs_command(&self) -> Command {
-        if self.use_sudo {
-            let mut cmd = Command::new("sudo");
-            cmd.arg("zfs");
-            cmd
-        } else {
-            Command::new("zfs")
-        }
-    }
-
-    fn zfs_list(&self, result_type: &str, volume: Option<&str>) -> Result<Vec<String>, ZfsError> {
-        let mut cmd = self.zfs_command();
-        cmd.arg("list")
-           .arg("-H")
-           .arg("-t")
-           .arg(result_type)
-           .arg("-o")
-           .arg("name,zsnapmgr:noautosnap");
-        if let Some(volume) = volume {
-            cmd.arg("-r")
-               .arg("-d")
-               .arg("1")
-               .arg(volume);
-        }
-
-        match cmd.output() {
-            Err(e) => Err(ZfsError::from(("failed to run 'zfs list'", e))),
-            Ok(result) => {
-                if !result.status.success() {
-                    return Err(ZfsError::from(("error from 'zfs list'", &result.stderr)));
-                }
-
-                Ok(get_first_column(&result.stdout))
-            }
-        }
+    pub fn new(use_sudo: bool) -> Result<Self, ZfsError> {
+        let client = libzfs::LibZfs::new()?;
+        Ok(Self {
+            client,
+            use_sudo,
+        })
     }
 
     pub fn volumes(&self, pool: Option<&str>) -> Result<Vec<String>, ZfsError> {
-        self.zfs_list("filesystem", pool)
+        // for purposes of this program, "volumes" is defined as filesystems + zvols
+        let mut volumes = vec![];
+        let pool_names = if let Some(name) = pool {
+            vec![name.into()]
+        } else {
+            self.client.get_zpools()?
+                .into_iter()
+                .map(|pool| pool.get_name()).collect()
+        };
+        for pool_name in pool_names {
+            let pool_dataset = self.client.dataset_by_name(&pool_name, DatasetTypeMask::all())?;
+            for dataset in pool_dataset.get_all_dependents()? {
+                if exclude_dataset(&dataset) {
+                    continue;
+                }
+                match dataset.get_type() {
+                    DatasetType::Filesystem | DatasetType::Volume => {
+                        volumes.push(dataset.get_name().to_string());
+                    },
+                    _ => (),
+                }
+            }
+        }
+        Ok(volumes)
     }
 
     pub fn snapshots(&self, dataset: Option<&str>) -> Result<Vec<String>, ZfsError> {
-        self.zfs_list("snapshot", dataset)
+        match dataset {
+            Some(name) => {
+                let ds = self.client.dataset_by_name(&name.into(), DatasetTypeMask::all())?;
+                Ok(ds.get_snapshots()?
+                    .into_iter()
+                    .filter_map(|ds| {
+                        if exclude_dataset(&ds) {
+                            None
+                        } else {
+                            Some(ds.get_name().to_string())
+                        }
+                    })
+                    .collect())
+            }
+            None => {
+                let mut snapshots = vec![];
+                for pool in self.client.get_zpools()? {
+                    let pool_ds = self.client.dataset_by_name(&pool.get_name(), DatasetTypeMask::all())?;
+                    snapshots.extend(
+                        pool_ds.get_all_dependents()?
+                            .into_iter()
+                            .filter_map(|ds| {
+                                // TODO: exclude ones with the 'zsnapmgr:noautosnap=yes' property
+                                if exclude_dataset(&ds) {
+                                    None
+                                } else if ds.get_type() == DatasetType::Snapshot {
+                                    Some(ds.get_name().to_string())
+                                } else {
+                                    None
+                                }
+                            })
+                        );
+                }
+                Ok(snapshots)
+            }
+        }
     }
 
     pub fn send(&self,

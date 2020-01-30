@@ -98,3 +98,15 @@ impl From<String> for ZfsError {
         }
     }
 }
+
+impl From<libzfs::Error> for ZfsError {
+    fn from(e: libzfs::Error) -> ZfsError {
+        match e {
+            libzfs::Error::Sys(e) => ZfsError { io_error: Some(e), descr: "?".to_owned() }, // FIXME
+            libzfs::Error::Zfs(zfs_error) => ZfsError {
+                descr: zfs_error.to_string(),
+                io_error: None,
+            }
+        }
+    }
+}

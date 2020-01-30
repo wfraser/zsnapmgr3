@@ -102,7 +102,7 @@ fn enumerate_files(path: &Path) -> Result<Box<dyn Iterator<Item = String>>, io::
 }
 
 fn gather_volumes(path: &Path) -> Vec<Backup> {
-    let z = ZSnapMgr::new(USE_SUDO);
+    let z = ZSnapMgr::new(USE_SUDO).expect("unable to initialize libzfs");
     let snapshots: Vec<String> = match z.get_snapshots(None) {
         Ok(s) => s,
         Err(e) => {
@@ -140,7 +140,7 @@ fn gather_volumes(path: &Path) -> Vec<Backup> {
                 let volume_name = parts[0].replace("_", "/");
                 let backup_snap = parts[1];
 
-                if volumes.binary_search(&volume_name).is_ok() {
+                if volumes.contains(&volume_name) {
                     backups.insert(parts[0].to_string(),
                                    volume_name.to_string(),
                                    Some(backup_snap.to_string()));
@@ -283,7 +283,7 @@ fn do_backups(backups: &[Backup], path: &Path) {
     }
 
     for backup in backups {
-        let z = ZSnapMgr::new(USE_SUDO);
+        let z = ZSnapMgr::new(USE_SUDO).expect("unable to initialize libzfs");
 
         let snapshot = format!("{}@{}",
                                backup.volume,
@@ -304,7 +304,7 @@ fn do_backups(backups: &[Backup], path: &Path) {
 }
 
 fn interactive_backup(backups_dir: &Path) {
-    let z = ZSnapMgr::new(USE_SUDO);
+    let z = ZSnapMgr::new(USE_SUDO).expect("unable to initialize libzfs");
     let mut backups: Vec<Backup> = gather_volumes(backups_dir);
     loop {
         let mut table = Table::new(&["_", "volume", "incremental", "snapshot date"]);
@@ -492,7 +492,7 @@ fn interactive_backup(backups_dir: &Path) {
 }
 
 fn snapshot_automanage() {
-    let z = ZSnapMgr::new(USE_SUDO);
+    let z = ZSnapMgr::new(USE_SUDO).expect("unable to initialize libzfs");
     z.snapshot_automanage().unwrap();
 }
 

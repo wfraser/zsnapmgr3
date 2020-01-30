@@ -44,11 +44,13 @@ impl Backups {
         match self.backups_by_volume.entry(volume.clone()) {
             Entry::Occupied(ref mut entry) => {
                 let backup = entry.get_mut();
-                if start_snapshot.is_some() &&
-                   (backup.start_snapshot.is_none() ||
-                    start_snapshot.as_ref().unwrap() > backup.start_snapshot.as_ref().unwrap()) {
-                    backup.start_snapshot = start_snapshot;
-                    backup.filename_base = filename_base;
+                if let Some(new_snapshot) = start_snapshot {
+                    if backup.start_snapshot.is_none()
+                        || &new_snapshot > backup.start_snapshot.as_ref().unwrap()
+                    {
+                        backup.start_snapshot = Some(new_snapshot);
+                        backup.filename_base = filename_base;
+                    }
                 }
             }
             Entry::Vacant(entry) => {

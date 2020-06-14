@@ -251,7 +251,6 @@ impl ZSnapMgr {
                 e
             })?;
 
-        //Err(ZfsError::from("snapshot automanage is not yet implemented."))
         Ok(())
     }
 }

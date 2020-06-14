@@ -162,6 +162,19 @@ impl ZFS {
         }
     }
 
+    pub fn create_snapshots<I: Iterator<Item=T>, T: AsRef<str>>(&self, names: I) -> Result<(), ZfsError> {
+        self.client.create_snapshots(names)?;
+        Ok(())
+    }
+
+    pub fn destroy_snapshots<I, T>(&self, names: I) -> Result<(), ZfsError>
+        where I: Iterator<Item=T>,
+              T: AsRef<str>,
+    {
+        self.client.destroy_snapshots(names)?;
+        Ok(())
+    }
+
     pub fn send(&self,
                 snapshot: &str,
                 destination_path: &Path,

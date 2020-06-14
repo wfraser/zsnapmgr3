@@ -231,16 +231,27 @@ impl ZSnapMgr {
             }
         }
 
-        for snap in to_delete {
-            // TODO
-            println!("ZFS DELETE {}", snap);
+        for snap in &to_delete {
+            println!("ZFS DELETE {:?}", snap);
         }
 
-        for snap in to_create {
-            // TODO
+        for snap in &to_create {
             println!("ZFS SNAPSHOT {}", snap);
         }
 
-        Err(ZfsError::from("snapshot automanage is not yet implemented."))
+        self.zfs.destroy_snapshots(to_delete.into_iter())
+            .map_err(|e| {
+                eprintln!("Failed to delete snapshots: {}", e);
+                e
+            })?;
+
+        self.zfs.create_snapshots(to_create.into_iter())
+            .map_err(|e| {
+                eprintln!("failed to create snapshots: {}", e);
+                e
+            })?;
+
+        //Err(ZfsError::from("snapshot automanage is not yet implemented."))
+        Ok(())
     }
 }

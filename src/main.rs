@@ -497,6 +497,8 @@ fn snapshot_automanage() {
 }
 
 fn main() {
+    eprintln!("zsnapmgr3/{}", env!("GIT_HASH"));
+
     let args: Vec<OsString> = env::args_os().collect();
     let program_name = Path::new(&args[0]);
 

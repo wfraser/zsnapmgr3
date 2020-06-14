@@ -291,15 +291,14 @@ fn do_backups(backups: &[Backup], path: &Path) {
 
         println!("\nBacking up: {}", snapshot);
 
-        z.backup(path,
-                 &snapshot,
-                 &passphrase,
-                 backup.start_snapshot.as_deref())
-         .err()
-         .and_then(|e| {
-             println!("failed backup of {}: {}", backup.volume, e);
-             Some(())
-         });
+        if let Err(e) = z.backup(
+            path,
+            &snapshot,
+            &passphrase,
+            backup.start_snapshot.as_deref(),
+        ) {
+            println!("failed backup of {}: {}", backup.volume, e);
+        }
     }
 }
 
@@ -348,14 +347,14 @@ fn interactive_backup(backups_dir: &Path) {
             vol.pop();
 
             let latest_snap: String = match z.get_snapshots(Some(&vol))
-                   .and_then(|ref mut snaps| {
-                       Ok(snaps.pop()
-                            .and_then(|full_name| {
-                                full_name.rsplitn(2, '@')
-                                    .next()
-                                    .map(|s| s.to_owned())
-                            }))
-                   })
+               .map(|ref mut snaps| {
+                    snaps.pop()
+                        .and_then(|full_name| {
+                            full_name.rsplitn(2, '@')
+                                .next()
+                                .map(|s| s.to_owned())
+                        })
+                })
             {
                 Ok(Some(date)) => date,
                 Ok(None) => {

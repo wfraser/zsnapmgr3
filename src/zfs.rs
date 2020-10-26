@@ -186,7 +186,7 @@ impl ZFS {
         // The "$0" and "$1" are replaced by the additional arguments passed to sh.
         // This is nice because it means they can contain any characters and require no escaping.
 
-        let cmdline = format!("{} send -P -v {} $1 {}{}",
+        let cmdline = format!("{} send --parsable --verbose {} $1 {}{}",
             if self.use_sudo { "sudo zfs" } else { "zfs" },
             if incremental.is_some() { "-i $0" } else { "" },
             if filter_program.is_some() { " | " } else { "" },

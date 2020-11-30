@@ -183,7 +183,7 @@ fn gather_volumes(path: &Path) -> Vec<Backup> {
                         && date_regex.is_match(snap.split_at(volume_at.len()).1))
                 .map(Deref::deref)
                 .collect();
-        volume_snaps.sort();
+        volume_snaps.sort_unstable();
 
         if backup.start_snapshot.is_some() {
             // Check that the start snapshot still exists.

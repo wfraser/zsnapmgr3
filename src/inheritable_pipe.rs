@@ -26,7 +26,7 @@ macro_rules! check_err {
 
 impl InheritablePipe {
     pub fn new() -> Result<InheritablePipe> {
-        let mut fds = [-1 as c_int, -1 as c_int];
+        let mut fds = [-1, -1];
         unsafe {
             check_err!(libc::pipe(&mut fds[0] as *mut c_int))?;
 

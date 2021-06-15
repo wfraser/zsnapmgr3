@@ -21,11 +21,11 @@ mod inheritable_pipe;
 mod zfs;
 
 use inheritable_pipe::InheritablePipe;
-use zfs::ZFS;
+use zfs::Zfs;
 use zfs_error::ZfsError;
 
 pub struct ZSnapMgr {
-    zfs: ZFS,
+    zfs: Zfs,
 }
 
 fn date_from_snapshot(snap: &str) -> Option<Date<Local>> {
@@ -105,7 +105,7 @@ impl<T: Datelike + Succ> WeekOfYear for T {
 impl ZSnapMgr {
     pub fn new(use_sudo: bool) -> Result<ZSnapMgr, ZfsError> {
         Ok(ZSnapMgr {
-            zfs: ZFS::new(use_sudo)?,
+            zfs: Zfs::new(use_sudo)?,
         })
     }
 
@@ -185,7 +185,7 @@ impl ZSnapMgr {
                 struct Pair<'a> {
                     date: &'a Date<Local>,
                     snap: &'a str,
-                };
+                }
 
                 const ISO8601_DATE_FMT: &str = "%Y-%m-%d";
 

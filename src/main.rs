@@ -336,7 +336,7 @@ fn interactive_backup(backups_dir: &Path) {
                 }
                 input.pop();
             }
-            Err(e) => panic!(e),
+            Err(e) => panic!("{}", e),
         }
 
         if input == "+" {

@@ -21,7 +21,7 @@ use ring::digest::SHA256;
 
 use libzfs::{DatasetType, DatasetTypeMask, LibZfs};
 
-pub struct ZFS {
+pub struct Zfs {
     client: LibZfs,
     pub use_sudo: bool,
 }
@@ -87,7 +87,7 @@ fn exclude_dataset(_ds: &libzfs::Dataset) -> bool {
     false
 }
 
-impl ZFS {
+impl Zfs {
     pub fn new(use_sudo: bool) -> Result<Self, ZfsError> {
         let client = libzfs::LibZfs::new()?;
         Ok(Self {
@@ -231,7 +231,7 @@ impl ZFS {
             {
                 let msg = format!("Error reading/writing 'zfs send' pipeline: {}", e);
                 println!("{}", msg);
-                panic!(msg);
+                panic!("{}", msg);
             }
         });
 

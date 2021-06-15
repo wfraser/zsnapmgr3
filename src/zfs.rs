@@ -188,7 +188,7 @@ impl Zfs {
 
         let cmdline = format!("{} send --parsable --verbose {} $1 {}{}",
             if self.use_sudo { "sudo zfs" } else { "zfs" },
-            if incremental.is_some() { "-i $0" } else { "" },
+            if incremental.is_some() { "-i @$0" } else { "" },
             if filter_program.is_some() { " | " } else { "" },
             filter_program.unwrap_or("")
         );
@@ -197,6 +197,11 @@ impl Zfs {
         partial_filename.push("_partial");
         let partial_path = destination_path.with_file_name(&partial_filename);
 
+        println!("running: {}",
+            cmdline
+                .replace("$0", incremental.as_deref().unwrap_or(""))
+                .replace("$1", snapshot)
+        );
         let mut child: Child = zfstry!(Command::new("sh")
             .arg("-c")
             .arg(&cmdline)

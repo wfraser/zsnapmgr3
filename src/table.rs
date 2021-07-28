@@ -1,6 +1,6 @@
 // A utility class for making pretty tables of text.
 //
-// Copyright (c) 2016 by William R. Fraser
+// Copyright (c) 2016-2021 by William R. Fraser
 //
 
 use std::fmt;
@@ -90,7 +90,7 @@ impl fmt::Display for Table {
         writeln!(f, "{:-<1$}", "-", total_measure)?;
 
         for row in &self.items {
-            write_measured(f, &row, &measures, &self.pad_left)?;
+            write_measured(f, row, &measures, &self.pad_left)?;
             writeln!(f)?;
         }
 

@@ -1,22 +1,21 @@
-// ZFS :: Interface to the `zfs` command line program.
+// ZFS :: Interface to the `zfs` client library.
 //
-// Copyright (c) 2016 by William R. Fraser
+// Copyright (c) 2016-2021 by William R. Fraser
 //
 
 use std::cmp;
 use std::fs;
 use std::process::{Child, Command, Stdio};
 use std::io::{stdout, Error, Read, Write};
-use std::iter::repeat;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
 
-use hash_stream;
-use zfs_error::ZfsError;
+use crate::hash_stream;
+use crate::zfs_error::ZfsError;
 
-use chrono::*;
+use chrono::prelude::*;
 use ring::digest::SHA256;
 
 use libzfs::{DatasetType, DatasetTypeMask, LibZfs};
@@ -297,9 +296,7 @@ impl Zfs {
                                               compratio);
                         let spacing =
                             cmp::max(0, last_line_length - outline.len() as isize) as usize;
-                        print!("\r{}{}",
-                               outline,
-                               repeat(' ').take(spacing).collect::<String>());
+                        print!("\r{}{}", outline, " ".repeat(spacing));
                         zfstry!(stdout().flush(), or "failed to flush stdout?!");
                         last_line_length = outline.len() as isize;
                     }

@@ -1,9 +1,7 @@
 // ZSnapMgr :: ZFS snapshot and backup manager
 //
-// Copyright (c) 2016 by William R. Fraser
+// Copyright (c) 2016-2021 by William R. Fraser
 //
-
-#![allow(unknown_lints)] // for Clippy
 
 use std::env;
 use std::ffi::{OsStr, OsString};
@@ -15,13 +13,8 @@ use std::ops::Deref;
 use std::path::Path;
 use std::process;
 
-extern crate regex;
 use regex::Regex;
-
-extern crate termios;
 use termios::*;
-
-extern crate zsnapmgr;
 use zsnapmgr::ZSnapMgr;
 
 mod table;
@@ -468,10 +461,9 @@ fn interactive_backup(backups_dir: &Path) {
 
             printf!("Date (yyyy-MM-dd");
             if start {
-                printf!(" or 'none' for full backup): ");
-            } else {
-                printf!("): ");
+                printf!(" or 'none' for full backup");
             }
+            printf!("): ");
 
             input.clear();
             io::stdin().read_line(&mut input).unwrap();

@@ -2,6 +2,7 @@
 name = "zsnapmgr"
 version = "0.0.1"
 authors = ["William R. Fraser <wfraser@codewise.org>"]
+edition = "2018"
 
 [dependencies]
 chrono = "0.4"

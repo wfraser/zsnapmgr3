@@ -1,6 +1,6 @@
 // ZSnapMgr :: ZFS snapshot and backup manager
 //
-// Copyright (c) 2016 by William R. Fraser
+// Copyright (c) 2016-2021 by William R. Fraser
 //
 
 use std::collections::btree_map::*;
@@ -8,12 +8,8 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::path::Path;
 
-extern crate chrono;
-extern crate libc;
-extern crate libzfs;
-extern crate ring;
-
-use chrono::*;
+use chrono::prelude::*;
+use chrono::IsoWeek;
 
 #[macro_use] mod zfs_error; // include this first because its macros are used in other modules.
 mod hash_stream;

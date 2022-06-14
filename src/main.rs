@@ -94,8 +94,7 @@ fn enumerate_files(path: &Path) -> Result<Box<dyn Iterator<Item = String>>, io::
     Ok(Box::new(iter))
 }
 
-fn gather_volumes(path: &Path) -> Vec<Backup> {
-    let z = ZSnapMgr::new(USE_SUDO).expect("unable to initialize libzfs");
+fn gather_volumes(z: &ZSnapMgr, path: &Path) -> Vec<Backup> {
     let snapshots: Vec<String> = match z.get_snapshots(None) {
         Ok(s) => s,
         Err(e) => {
@@ -297,7 +296,7 @@ fn do_backups(backups: &[Backup], path: &Path) {
 
 fn interactive_backup(backups_dir: &Path) {
     let z = ZSnapMgr::new(USE_SUDO).expect("unable to initialize libzfs");
-    let mut backups: Vec<Backup> = gather_volumes(backups_dir);
+    let mut backups: Vec<Backup> = gather_volumes(&z, backups_dir);
     loop {
         let mut table = Table::new(&["_", "volume", "incremental", "snapshot date"]);
         for (i, backup) in backups.iter().enumerate() {

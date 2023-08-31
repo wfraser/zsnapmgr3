@@ -198,13 +198,13 @@ impl Zfs {
 
         println!("running: {}",
             cmdline
-                .replace("$0", incremental.as_deref().unwrap_or(""))
+                .replace("$0", incremental.unwrap_or(""))
                 .replace("$1", snapshot)
         );
         let mut child: Child = zfstry!(Command::new("sh")
             .arg("-c")
             .arg(&cmdline)
-            .arg(incremental.or(Some("")).unwrap())
+            .arg(incremental.unwrap_or(""))
             .arg(snapshot)
             .stdin(Stdio::inherit())
             .stdout(Stdio::piped())
@@ -245,11 +245,11 @@ impl Zfs {
         loop {
             match read_line(child.stderr.as_mut().unwrap()) {
                 Ok(Some(line)) => {
-                    if (&line).starts_with("incremental\t") || (&line).starts_with("full\t") {
+                    if line.starts_with("incremental\t") || line.starts_with("full\t") {
                         continue;
                     }
-                    if (&line).starts_with("size\t") {
-                        size = (&line).split_at(5).1.parse::<u64>().unwrap();
+                    if line.starts_with("size\t") {
+                        size = line.split_at(5).1.parse::<u64>().unwrap();
                         println!("Full size: {}B", human_number(size, 1));
                         if size == 0 {
                             println!("Empty snapshot; skipping.");
@@ -315,16 +315,16 @@ impl Zfs {
             return Err(ZfsError::from(msg));
         }
 
-        let exit_status = (&mut child).wait().unwrap();
+        let exit_status = child.wait().unwrap();
         if !exit_status.success() {
-            let code = exit_status.code().or(Some(0)).unwrap();
+            let code = exit_status.code().unwrap_or(0);
             return Err(ZfsError::from(format!("'zfs send' returned nonzero exit code: {}", code)));
         }
 
         if size == 0 {
             zfstry!(fs::remove_file(&partial_path), or "failed to remove empty partial file");
         } else {
-            zfstry!(fs::rename(&partial_path, &destination_path),
+            zfstry!(fs::rename(&partial_path, destination_path),
                 or "failed to move partial file to destination");
             zfstry!(fs::rename(&partial_sidecar_path, &destination_sidecar_path),
                 or "failed to move partial file sidecar to destination");

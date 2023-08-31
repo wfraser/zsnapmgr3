@@ -123,13 +123,13 @@ fn gather_volumes(z: &ZSnapMgr, path: &Path) -> Vec<Backup> {
 
     for file_path in file_iter {
         if let Some(zfs_pos) = file_path.find(".zfs") {
-            if !(&file_path).ends_with("_partial") {
+            if !file_path.ends_with("_partial") {
                 let parts = file_path[0..zfs_pos].splitn(2, '@').collect::<Vec<&str>>();
                 if parts.len() != 2 {
                     println!("ERROR: malformed ZFS filename: {:?}", file_path);
                     continue;
                 }
-                let volume_name = parts[0].replace("_", "/");
+                let volume_name = parts[0].replace('_', "/");
                 let backup_snap = parts[1];
 
                 if volumes.contains(&volume_name) {
@@ -342,7 +342,7 @@ fn interactive_backup(backups_dir: &Path) {
                .map(|ref mut snaps| {
                     snaps.pop()
                         .and_then(|full_name| {
-                            full_name.rsplitn(2, '@')
+                            full_name.rsplit('@')
                                 .next()
                                 .map(|s| s.to_owned())
                         })
@@ -360,7 +360,7 @@ fn interactive_backup(backups_dir: &Path) {
             };
 
             backups.push(Backup {
-                filename_base: vol.replace("/", "_").to_string(),
+                filename_base: vol.replace('/', "_").to_string(),
                 volume: vol.clone(),
                 start_snapshot: None,
                 end_snapshot: Some(latest_snap),
@@ -423,17 +423,13 @@ fn interactive_backup(backups_dir: &Path) {
             do_backups(&backups, backups_dir);
             break;
         } else {
-            let index: usize;
-
-            match input.parse::<usize>() {
-                Ok(n) => {
-                    index = n;
-                }
+            let index = match input.parse::<usize>() {
+                Ok(n) => n,
                 Err(e) => {
                     println!("Invalid number: {}\n", e);
                     continue;
                 }
-            }
+            };
 
             if backups.len() < index || index == 0 {
                 println!("Number out of range.\n");

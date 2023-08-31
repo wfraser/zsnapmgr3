@@ -118,7 +118,7 @@ impl ZSnapMgr {
 
         zfstry!(write!(passphrase_pipe, "{}\n", passphrase), or "failed to write passphrase to pipe");
 
-        let destination_path = path.join(OsString::from(snapshot.replace("/", "_") + ".zfs.zst.gpg"));
+        let destination_path = path.join(OsString::from(snapshot.replace('/', "_") + ".zfs.zst.gpg"));
 
         self.zfs.send(snapshot,
                       &destination_path,
@@ -143,7 +143,7 @@ impl ZSnapMgr {
                 None => continue,
             };
 
-            let volume = snap.splitn(2, '@').next().unwrap().to_string();
+            let volume = snap.split('@').next().unwrap().to_string();
             let entry = snaps_map.entry(volume).or_insert_with(BTreeMap::new);
             entry.insert(snap_date, snap);
         }

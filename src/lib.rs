@@ -24,7 +24,7 @@ pub struct ZSnapMgr {
     zfs: Zfs,
 }
 
-fn date_from_snapshot(snap: &str) -> Option<Date<Local>> {
+fn date_from_snapshot(snap: &str) -> Option<NaiveDate> {
     let datepart = match snap.splitn(2, '@').last() {
         Some(s) => s,
         None => return None,
@@ -41,7 +41,7 @@ fn date_from_snapshot(snap: &str) -> Option<Date<Local>> {
         return None;
     }
 
-    Some(Local.ymd(dateparts[0], dateparts[1] as u32, dateparts[2] as u32))
+    Some(NaiveDate::from_ymd_opt(dateparts[0], dateparts[1] as u32, dateparts[2] as u32).unwrap())
 }
 
 trait Succ {
@@ -52,15 +52,9 @@ trait WeekOfYear {
     fn week_of_year(&self) -> IsoWeek;
 }
 
-impl<Tz: TimeZone> Succ for Date<Tz> {
-    fn succ(&self) -> Self {
-        Date::<Tz>::succ(self)
-    }
-}
-
 impl Succ for NaiveDate {
     fn succ(&self) -> Self {
-        NaiveDate::succ(self)
+        NaiveDate::succ_opt(self).unwrap()
     }
 }
 
@@ -135,14 +129,14 @@ impl ZSnapMgr {
     }
 
     pub fn snapshot_automanage(&self) -> Result<(), ZfsError> {
-        let today = Local::today();
+        let today = Local::now().date_naive();
         let today_str = format!("{:04}-{:02}-{:02}",
                                 today.year(),
                                 today.month(),
                                 today.day());
 
         let mut all_snaps = self.get_snapshots(None)?;
-        let mut snaps_map: BTreeMap<String, BTreeMap<Date<Local>, String>> = BTreeMap::new();
+        let mut snaps_map: BTreeMap<String, BTreeMap<NaiveDate, String>> = BTreeMap::new();
         for snap in all_snaps.drain(..) {
             let snap_date = match date_from_snapshot(&snap) {
                 Some(date) => date,
@@ -179,7 +173,7 @@ impl ZSnapMgr {
 
                 // Give the tuple elements names.
                 struct Pair<'a> {
-                    date: &'a Date<Local>,
+                    date: &'a NaiveDate,
                     snap: &'a str,
                 }
 

@@ -269,9 +269,11 @@ impl Zfs {
                             let msg = format!("Unrecognized output: {}", line);
                             return Err(ZfsError::from(msg));
                         }
-                        let time = Local::today().and_hms(time_parts[0],
-                                                          time_parts[1],
-                                                          time_parts[2]);
+                        let time = Local::now().date_naive()
+                            .and_hms_opt(time_parts[0], time_parts[1], time_parts[2])
+                            .unwrap()
+                            .and_local_timezone(Local)
+                            .unwrap();
                         let elapsed = time.signed_duration_since(start_time);
 
                         let partial_size: u64;

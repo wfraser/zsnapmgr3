@@ -5,11 +5,12 @@ authors = ["William R. Fraser <wfraser@codewise.org>"]
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0.75"
 chrono = "0.4"
 libc = "0.2"
 libzfs = { path = "zfs-rs" }
 regex = "1"
-ring = "0.16"
+ring = "0.17"
 termios = "0.3"
 
 [[bin]]

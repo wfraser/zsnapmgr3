@@ -477,12 +477,13 @@ fn interactive_backup(backups_dir: &Path) {
     }
 }
 
-fn snapshot_automanage() {
+fn snapshot_automanage() -> anyhow::Result<()> {
     let z = ZSnapMgr::new(USE_SUDO).expect("unable to initialize libzfs");
-    z.snapshot_automanage().unwrap();
+    z.snapshot_automanage()?;
+    Ok(())
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     eprintln!("zsnapmgr3/{}", env!("GIT_HASH"));
 
     let args: Vec<OsString> = env::args_os().collect();
@@ -504,7 +505,7 @@ fn main() {
             }
         }
         Some("automanage") => {
-            snapshot_automanage();
+            snapshot_automanage()?;
         }
         _ => {
             if command != "help" {
@@ -514,4 +515,6 @@ fn main() {
             process::exit(-1);
         }
     }
+
+    Ok(())
 }

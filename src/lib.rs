@@ -223,17 +223,14 @@ impl ZSnapMgr {
 
         for snap in &to_delete {
             println!("ZFS DELETE {:?}", snap);
+            if let Err(e) = self.zfs.destroy_snapshots(std::iter::once(snap)) {
+                eprintln!("Failed to delete snapshot: {}", e);
+            }
         }
 
         for snap in &to_create {
             println!("ZFS SNAPSHOT {}", snap);
         }
-
-        self.zfs.destroy_snapshots(to_delete.into_iter())
-            .map_err(|e| {
-                eprintln!("Failed to delete snapshots: {}", e);
-                e
-            })?;
 
         self.zfs.create_snapshots(to_create.into_iter())
             .map_err(|e| {
